@@ -1,13 +1,6 @@
 from xml.dom.minidom import parse, parseString
 import os
 
-def getText(nodelist):
-    rc = []
-    for node in nodelist:
-        if node.nodeType == node.TEXT_NODE:
-            rc.append(node.data)
-    return ''.join(rc)
-
 def main():
     directoryName = 'ake-datasets-master/datasets/500N-KPCrowd/train';
     directory = os.fsencode(directoryName)
