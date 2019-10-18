@@ -1,13 +1,29 @@
-import xml.dom.minidom
+from xml.dom.minidom import parse, parseString
 import os
 
-xml = xml.dom.minidom.parse("1005058.xml")
-sentences = xml.getElementsByTagName('sentence')
+def getText(nodelist):
+    rc = []
+    for node in nodelist:
+        if node.nodeType == node.TEXT_NODE:
+            rc.append(node.data)
+    return ''.join(rc)
 
-sentence_list = []
+def main():
+    directoryName = 'ake-datasets-master/datasets/500N-KPCrowd/train';
+    directory = os.fsencode(directoryName)
 
-for i, sentence in enumerate(sentences):
-    tokens = sentence.getElementsByTagName('token')
-    sentence_list.append(' '.join([t.getElementsByTagName('word')[0].firstChild.nodeValue for t in tokens]))
+    for f in os.listdir(directory):
+        filePath = directoryName + '/' + f.decode("utf-8")
+        datasource = open(filePath)
+        dom = parse(datasource)
 
-print(sentence_list)
+        sentences = dom.getElementsByTagName('sentence')
+        sentence_list = []
+
+        for i, sentence in enumerate(sentences):
+            tokens = sentence.getElementsByTagName('token')
+            sentence_list.append(' '.join([t.getElementsByTagName('word')[0].firstChild.nodeValue for t in tokens]))
+
+        print(sentence_list)
+
+main()
