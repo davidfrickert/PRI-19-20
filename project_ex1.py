@@ -17,7 +17,7 @@ def get_tfidf_score(doc):
 
     for col, term in enumerate(terms):
         if tf_idf_matrix[0, col] != 0:
-            data.append((term, tf_idf_matrix[0, col] * (len(term) / len(term.split()) )))
+            data.append((term, tf_idf_matrix[0, col] * (len(term) / len(term.split()))))
 
     ranking = pd.DataFrame(data, columns=['term', 'rank'])
     print(ranking.sort_values('rank', ascending=False).to_string())
