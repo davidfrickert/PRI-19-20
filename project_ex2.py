@@ -4,6 +4,8 @@ import os
 def main():
     directoryName = 'ake-datasets-master/datasets/500N-KPCrowd/train';
     directory = os.fsencode(directoryName)
+    
+    sentence_list = []
 
     for f in os.listdir(directory):
         filePath = directoryName + '/' + f.decode("utf-8")
@@ -11,7 +13,6 @@ def main():
         dom = parse(datasource)
 
         sentences = dom.getElementsByTagName('sentence')
-        sentence_list = []
 
         for i, sentence in enumerate(sentences):
             tokens = sentence.getElementsByTagName('token')
