@@ -11,6 +11,29 @@ def calcMetrics(results, reference):
     with open(reference) as f:
         reference_results = json.load(f)
 
+        #print(reference_results['politics_world-20786243'])
+
+        #for x in reference_results['politics_world-20786243']:
+        #    for term in results['politics_world-20786243']:
+               
+        #        if term[0] == x[0]:
+        #            print(term, "=", x)
+               
+        precision = dict()
+
+        for x in reference_results:
+            correct = 0
+            for word in results[x]:
+                for term in reference_results[x]:
+                    if word[0] == term[0]:
+                        correct+=1
+                        break
+            precision[x] = (float)(correct)/(float)(len(reference_results[x]))
+
+        precision_s = sorted(precision.items(), key=lambda kv: kv[1], reverse=True)
+        print(precision_s)
+                    
+            
         # calc precison, recall, f1 per doc & avg
         # avg precision@5 & avg precision
 
@@ -75,7 +98,7 @@ def main():
         # apenas queremos o top 5 (índices 0 a 5 (ñ inclusive))
         data.update({doc_name: doc_info[:5]})
 
-    print(data)
+    #print(len(data))
 
     calcMetrics(data, 'ake-datasets-master/datasets/500N-KPCrowd/references/test.reader.json')
 
