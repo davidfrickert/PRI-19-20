@@ -30,8 +30,7 @@ def calcMetrics(results, reference):
                         break
             precision[x] = (float)(correct)/(float)(len(reference_results[x]))
 
-        precision_s = sorted(precision.items(), key=lambda kv: kv[1], reverse=True)
-        print(precision_s)
+        print(precision)
                     
             
         # calc precison, recall, f1 per doc & avg
