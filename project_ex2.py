@@ -2,39 +2,66 @@ from xml.dom.minidom import parse, parseString
 from sklearn.feature_extraction.text import TfidfVectorizer
 from nltk.corpus import stopwords
 import os
-from os.path import  splitext
+from os.path import splitext
 import json
+
+from sklearn.metrics import *
 
 
 def calcMetrics(results, reference):
-
     with open(reference) as f:
         reference_results = json.load(f)
 
-        #print(reference_results['politics_world-20786243'])
+        # print(reference_results['politics_world-20786243'])
 
-        #for x in reference_results['politics_world-20786243']:
+        # for x in reference_results['politics_world-20786243']:
         #    for term in results['politics_world-20786243']:
-               
+
         #        if term[0] == x[0]:
         #            print(term, "=", x)
-               
-        precision = dict()
+
+        precision = {}
+        recall = {}
+        f1 = {}
+        non_relevant = {}
 
         for x in reference_results:
-            correct = 0
-            for word in results[x]:
-                for term in reference_results[x]:
+            true_positives = 0
+            false_negatives = 0
+
+            non_relevant[x] = results[x][len(reference_results[x]):]
+            results[x] = results[x][:len(reference_results[x])]
+
+            for term in reference_results[x]:
+                for word in results[x]:
                     if word[0] == term[0]:
-                        correct+=1
+                        true_positives += 1
                         break
-            precision[x] = (float)(correct)/(float)(len(reference_results[x]))
+
+                for word in non_relevant[x]:
+                    if word[0] == term[0]:
+                        false_negatives += 1
+                        break
+
+            # TP / (TP + FP)
+            # TP => corretos
+            # FP => total(resultados) - corretos => incorretos
+
+            precision[x] = float(true_positives) / float(true_positives + (len(reference_results[x]) - true_positives))
+
+            # TP / (TP + FN)
+            # TP => corretos
+            # FN => quais keyphrases o nosso algoritmo identificou como não-relevante mas é relevante
+
+            recall[x] = float(true_positives) / float(true_positives + false_negatives)
+            if recall[x] or precision[x]:
+                f1[x] = (2 * precision[x] * recall[x]) / (precision[x] + recall[x])
+            else:
+                f1[x] = 0.
 
         print(precision)
-                    
-            
-        # calc precison, recall, f1 per doc & avg
-        # avg precision@5 & avg precision
+        print(recall)
+        print(f1)
 
 
 def convertXML(xml):
@@ -95,9 +122,9 @@ def main():
         doc_info.sort(key=lambda elem: elem[1], reverse=True)
 
         # apenas queremos o top 5 (índices 0 a 5 (ñ inclusive))
-        data.update({doc_name: doc_info[:5]})
+        data.update({doc_name: doc_info})
 
-    #print(len(data))
+    # print(len(data))
 
     calcMetrics(data, 'ake-datasets-master/datasets/500N-KPCrowd/references/test.reader.json')
 
