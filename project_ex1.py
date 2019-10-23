@@ -6,6 +6,7 @@ import nltk
 
 def get_tfidf_score(doc):
     train = fetch_20newsgroups(subset='train', remove=('headers', 'footers', 'quotes'))
+
     vec = TfidfVectorizer(ngram_range=(1, 3), stop_words='english')
     vec.fit(train.data)
 
@@ -25,7 +26,6 @@ def get_tfidf_score(doc):
 
 with open('text1.txt', 'r') as doc:
     sent = [' '.join(doc.readlines())]
-    # sent = nltk.sent_tokenize('\n'.join(doc.readlines()))
     print(sent)
 
 

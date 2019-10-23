@@ -15,19 +15,19 @@ PATH_CORENLP=/nlp/stanford-corenlp-full-2016-10-31
 ################################################################################
 # TEST split
 ################################################################################
-# mkdir -p ../test
+# mkdir -p ../dataset
 
-# ls test/*.txt > test.filelist
+# ls dataset/*.txt > dataset.filelist
 
 # java -cp "$PATH_CORENLP/*" -Xmx2g edu.stanford.nlp.pipeline.StanfordCoreNLP \
 #      -annotators tokenize,ssplit,pos,lemma \
-#      -outputDirectory test/ \
+#      -outputDirectory dataset/ \
 #      -ssplit.newlineIsSentenceBreak always \
-#      -filelist test.filelist
+#      -filelist dataset.filelist
 
-# rm test.filelist
+# rm dataset.filelist
 
-# for FILE in test/*.txt.xml
+# for FILE in dataset/*.txt.xml
 # do
 #     mv $FILE ../${FILE%.txt.xml}.xml
 # done
@@ -60,15 +60,15 @@ PATH_CORENLP=/nlp/stanford-corenlp-full-2016-10-31
 
 # mkdir -p ../references
 
-# python json_references.py test/ ../references/test.reader.stem.json key True
+# python json_references.py dataset/ ../references/dataset.reader.stem.json key True
 # python json_references.py train/ ../references/train.reader.stem.json key True
 
-# python json_references.py test/ ../references/test.reader.json key False
+# python json_references.py dataset/ ../references/dataset.reader.json key False
 # python json_references.py train/ ../references/train.reader.json key False
 
 
 # ################################################################################
 # # CLEAN UP
 # ################################################################################
-# rm -R test/
+# rm -R dataset/
 # rm -R train/
