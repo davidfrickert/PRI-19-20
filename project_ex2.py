@@ -1,4 +1,7 @@
+import string
 from xml.dom.minidom import parse, parseString
+
+import nltk
 from sklearn.feature_extraction.text import TfidfVectorizer
 from nltk.corpus import stopwords
 import os
@@ -73,8 +76,16 @@ def convertXML(xml):
 
     return result
 
+def convertXMLToTaggedSents(xml):
+    result = []
 
-def getDataFromDir(path):
+    for i, sentence in enumerate(xml):
+        tokens = sentence.getElementsByTagName('token')
+        result.append([(t.getElementsByTagName('word')[0].firstChild.nodeValue,
+                        t.getElementsByTagName('POS')[0].firstChild.nodeValue) for t in tokens ])
+    return result
+
+def getDataFromDir(path, mode='string'):
     directory = os.fsencode(path)
 
     docs = {}
@@ -87,30 +98,16 @@ def getDataFromDir(path):
             xml = dom.getElementsByTagName('sentence')
 
             doc_name = splitext(f)[0].decode("utf-8")
-            docs.update({doc_name: convertXML(xml)})
+            if mode == 'string':
+                docs.update({doc_name: convertXML(xml)})
+            else:
+                docs.update({doc_name: convertXMLToTaggedSents(xml)})
 
     return docs
 
-
-def main():
-    train = getDataFromDir('ake-datasets-master/datasets/500N-KPCrowd/train')
-
-    stopW = set(stopwords.words('english'))
-
-    vec = TfidfVectorizer(stop_words=stopW, ngram_range=(1, 3))
-
-    test = getDataFromDir('ake-datasets-master/datasets/500N-KPCrowd/test')
-
-    vec.fit(train.values())
-
-    X = vec.transform(test.values())
-
-    terms = vec.get_feature_names()
-    scoreArr = X.toarray()
-
+def merge(dataset, terms, scoreArr):
     data = {}
-
-    for doc_index, doc_name in enumerate(test):
+    for doc_index, doc_name in enumerate(dataset):
         doc_info = []
         for word_index, term in enumerate(terms):
 
@@ -123,8 +120,24 @@ def main():
 
         # apenas queremos o top 5 (índices 0 a 5 (ñ inclusive))
         data.update({doc_name: doc_info})
+    return data
 
-    # print(len(data))
+def getTFIDFScore(dataset):
+    stopW = set(stopwords.words('english'))
+
+    vec = TfidfVectorizer(stop_words=stopW, ngram_range=(1, 3))
+
+    X = vec.fit_transform(dataset.values())
+
+    terms = vec.get_feature_names()
+    scoreArr = X.toarray()
+
+    return merge(dataset, terms, scoreArr)
+
+def main():
+
+    test = getDataFromDir('ake-datasets-master/datasets/500N-KPCrowd/test')
+    data = getTFIDFScore(test)
 
     calcMetrics(data, 'ake-datasets-master/datasets/500N-KPCrowd/references/test.reader.json')
 
