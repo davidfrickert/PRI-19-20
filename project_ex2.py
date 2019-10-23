@@ -31,12 +31,11 @@ def calcTPFN(doc, reference_results, results, at = None):
 
     for term in reference_results[doc]:
         
-        if(at == counter):
+        if at == counter:
             return true_positives, false_negatives
 
         for word in results[doc]:
             if porter.stem(word[0]) == term[0]:
-            
                 true_positives += 1
                 break
 
