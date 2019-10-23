@@ -1,51 +1,69 @@
 import string
+import json
+import os
 from xml.dom.minidom import parse, parseString
-
-import nltk
 from sklearn.feature_extraction.text import TfidfVectorizer
 from nltk.corpus import stopwords
-import os
-from os.path import splitext
-import json
+from nltk.stem import PorterStemmer
+from os.path import  splitext
 
-from sklearn.metrics import *
+def average(dic):
+    total = 0
+    for item in dic:
+        total += dic[item]
+    
+    return total / len(dic)
+
+def calcTPFN(doc, reference_results, results, at = None):
+
+    porter = PorterStemmer()
+    true_positives = 0
+    false_negatives = 0
+    counter = 0
+
+    
+    non_relevant = results[doc][len(reference_results[doc]):]
+    results[doc] = results[doc][:len(reference_results[doc])]
+
+    if(at != None) :
+        non_relevant = results[doc][at:]
+        results[doc] = results[doc][:at]
+
+    for term in reference_results[doc]:
+        
+        if(at == counter):
+            return true_positives, false_negatives
+
+        for word in results[doc]:
+            if porter.stem(word[0]) == term[0]:
+            
+                true_positives += 1
+                break
+
+        for word in non_relevant:
+            if porter.stem(word[0]) == term[0]:
+                false_negatives += 1
+                break
+        
+        counter+=1
+
+    return true_positives, false_negatives
 
 
 def calcMetrics(results, reference):
     with open(reference) as f:
         reference_results = json.load(f)
 
-        # print(reference_results['politics_world-20786243'])
-
-        # for x in reference_results['politics_world-20786243']:
-        #    for term in results['politics_world-20786243']:
-
-        #        if term[0] == x[0]:
-        #            print(term, "=", x)
-
         precision = {}
         recall = {}
         f1 = {}
+        precision5 = {}
         non_relevant = {}
 
         for x in reference_results:
-            true_positives = 0
-            false_negatives = 0
 
-            non_relevant[x] = results[x][len(reference_results[x]):]
-            results[x] = results[x][:len(reference_results[x])]
-
-            for term in reference_results[x]:
-                for word in results[x]:
-                    if word[0] == term[0]:
-                        true_positives += 1
-                        break
-
-                for word in non_relevant[x]:
-                    if word[0] == term[0]:
-                        false_negatives += 1
-                        break
-
+            true_positives, false_negatives = calcTPFN(x, reference_results, results)
+            
             # TP / (TP + FP)
             # TP => corretos
             # FP => total(resultados) - corretos => incorretos
@@ -63,8 +81,21 @@ def calcMetrics(results, reference):
                 f1[x] = 0.
 
         print(precision)
+        print(average(precision))
         print(recall)
+        print(average(recall))
         print(f1)
+        print(average(f1))
+
+        for x in reference_results:
+
+            true_positives, false_negatives = calcTPFN(x, reference_results, results, 5)
+            precision5[x] = float(true_positives) / float(true_positives + (len(reference_results[x]) - true_positives))
+
+        print(precision5)
+        print(average(precision5))
+        # calc precison, recall, f1 per doc & avg
+        # avg precision@5 & avg precision
 
 
 def convertXML(xml):
@@ -84,6 +115,7 @@ def convertXMLToTaggedSents(xml):
         result.append([(t.getElementsByTagName('word')[0].firstChild.nodeValue,
                         t.getElementsByTagName('POS')[0].firstChild.nodeValue) for t in tokens ])
     return result
+
 
 def getDataFromDir(path, mode='string'):
     directory = os.fsencode(path)
@@ -105,6 +137,7 @@ def getDataFromDir(path, mode='string'):
 
     return docs
 
+
 def merge(dataset, terms, scoreArr):
     data = {}
     for doc_index, doc_name in enumerate(dataset):
@@ -118,7 +151,6 @@ def merge(dataset, terms, scoreArr):
         # sort por tf_idf; elem = (term, tf_idf); elem[1] = tf_idf
         doc_info.sort(key=lambda elem: elem[1], reverse=True)
 
-        # apenas queremos o top 5 (índices 0 a 5 (ñ inclusive))
         data.update({doc_name: doc_info})
     return data
 
@@ -135,11 +167,9 @@ def getTFIDFScore(dataset):
     return merge(dataset, terms, scoreArr)
 
 def main():
-
     test = getDataFromDir('ake-datasets-master/datasets/500N-KPCrowd/test')
     data = getTFIDFScore(test)
-
-    calcMetrics(data, 'ake-datasets-master/datasets/500N-KPCrowd/references/test.reader.json')
+    calcMetrics(data, 'ake-datasets-master/datasets/500N-KPCrowd/references/test.reader.stem.json')
 
 
 if __name__ == '__main__':
