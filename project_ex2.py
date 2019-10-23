@@ -79,20 +79,24 @@ def calcMetrics(results, reference):
             else:
                 f1[x] = 0.
 
+        print("Precision: ")
         print(precision)
-        print(average(precision))
+        print(average(precision), end="\n\n")
+        print("Recall: ")
         print(recall)
-        print(average(recall))
+        print(average(recall), end="\n\n")
+        print("F1: ")
         print(f1)
-        print(average(f1))
+        print(average(f1), end="\n\n")
 
         for x in reference_results:
 
             true_positives, false_negatives = calcTPFN(x, reference_results, results, 5)
             precision5[x] = float(true_positives) / float(true_positives + (len(reference_results[x]) - true_positives))
 
+        print("Precision@5: ")
         print(precision5)
-        print(average(precision5))
+        print(average(precision5), end="\n\n")
         # calc precison, recall, f1 per doc & avg
         # avg precision@5 & avg precision
 
@@ -145,7 +149,7 @@ def merge(dataset, terms, scoreArr):
 
             tf_idf = scoreArr[doc_index][word_index]
             if tf_idf != 0:
-                doc_info.append((term, tf_idf))
+                doc_info.append((term, tf_idf * (len(term)/len(term.split(' ')))))
 
         # sort por tf_idf; elem = (term, tf_idf); elem[1] = tf_idf
         doc_info.sort(key=lambda elem: elem[1], reverse=True)
@@ -156,13 +160,13 @@ def merge(dataset, terms, scoreArr):
 def getTFIDFScore(dataset):
     stopW = set(stopwords.words('english'))
 
-    vec = TfidfVectorizer(stop_words=stopW, ngram_range=(1, 3))
+    vec = TfidfVectorizer(stop_words=stopW, ngram_range=(1, 3), min_df=2)
 
     X = vec.fit_transform(dataset.values())
 
     terms = vec.get_feature_names()
     scoreArr = X.toarray()
-
+    
     return merge(dataset, terms, scoreArr)
 
 def main():
