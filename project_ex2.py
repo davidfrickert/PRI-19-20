@@ -96,6 +96,7 @@ def calcMetrics(results, reference):
         # avg precision@5 & avg precision
 
 
+# falta aplicar stemming aqui
 def convertXML(xml):
     result = ""
 
@@ -105,7 +106,7 @@ def convertXML(xml):
 
     return result
 
-
+# falta aplicar stemming aqui
 def convertXMLToTaggedSents(xml):
     result = []
 
@@ -153,7 +154,7 @@ def merge(dataset, terms, scoreArr):
         data.update({doc_name: doc_info})
     return data
 
-
+# mudar isto para usar a lista como BM25, para eficiência
 def getTFIDFScore(dataset):
     stopW = set(stopwords.words('english'))
 
