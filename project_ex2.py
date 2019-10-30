@@ -14,44 +14,7 @@ def average(dic):
     
     return total / len(dic)
 
-def calcTPFNDeprecated(doc, reference_results, results, at = None):
-
-    porter = PorterStemmer()
-    true_positives = 0
-    false_negatives = 0
-    counter = 0
-
-    
-    non_relevant = results[doc][len(reference_results[doc]):]
-    results[doc] = results[doc][:len(reference_results[doc])]
-
-    if(at != None) :
-        non_relevant = results[doc][at:]
-        results[doc] = results[doc][:at]
-
-    for term in reference_results[doc]:
-        
-        if at == counter:
-            return true_positives, false_negatives
-
-        for word in results[doc]:
-            if porter.stem(word[0]) == term[0]:
-                true_positives += 1
-                break
-
-        for word in non_relevant:
-            if porter.stem(word[0]) == term[0]:
-                false_negatives += 1
-                break
-        
-        counter+=1
-
-    return true_positives, false_negatives
-
 def calcTPFNFP(doc, reference_results, results):
-
-    #print("\n", doc)
-    
     porter = PorterStemmer()
     true_positives = 0
     false_negatives = 0
@@ -59,12 +22,18 @@ def calcTPFNFP(doc, reference_results, results):
 
     results[doc] = results[doc][:len(reference_results[doc])]
 
-    #true positives = achamos relevantes e é relevante
     for word in results[doc]:
         flag = 0
 
+        stemed = ""
+
+        for w in word[0].split(' '):
+            stemed += porter.stem(w) + " "
+
+        stemed = stemed[:-1]
+
         for term in reference_results[doc]:
-            if porter.stem(word[0]) == term[0]:
+            if stemed == term[0]:
                 true_positives += 1
                 flag = 1
                 break
@@ -74,31 +43,45 @@ def calcTPFNFP(doc, reference_results, results):
 
     for term in reference_results[doc]:
         flag = 0
+
         for word in results[doc]:
-            if porter.stem(word[0]) == term[0]:
+
+            stemed = ""
+
+            for w in word[0].split(' '):
+                stemed += porter.stem(w) + " "
+
+            stemed = stemed[:-1]
+
+            if stemed == term[0]:
                 flag = 1
+                break
 
         if flag == 0:
             false_negatives += 1
             
-
-    
-    #false_negatives = len(reference_results[doc]) - true_positives
     return true_positives, false_negatives, false_positives
 
 def precisionAt(doc, reference_results, results, at):
     
     porter = PorterStemmer()
     true_positives = 0
-    false_negatives = 0
     counter = 0
 
     tmp = results[doc][:at]
 
     for word in tmp:
 
+        stemed = ""
+
+        for w in word[0].split(' '):
+            stemed += porter.stem(w) + " "
+
+        stemed = stemed[:-1]
+            
         for term in reference_results[doc]:
-            if porter.stem(word[0]) == term[0]:
+
+            if stemed == term[0]:
                 true_positives += 1
                 break
     
@@ -115,30 +98,21 @@ def calcMetrics(results, reference):
         recall = {}
         f1 = {}
         precision5 = {}
-        non_relevant = {}
 
         for x in reference_results:
 
-            precision5[x] = precisionAt(x, reference_results, results,5)
-
             true_positives, false_negatives, false_positives = calcTPFNFP(x, reference_results, results)
             
-            # TP / (TP + FP)
-            # TP => corretos
-            # FP => total(resultados) - corretos => incorretos
-
             precision[x] = float(true_positives) / float(true_positives + false_positives)
-
-            
-            # TP / (TP + FN)
-            # TP => corretos
-            # FN => quais keyphrases o nosso algoritmo identificou como não-relevante mas é relevante
 
             recall[x] = float(true_positives) / float(true_positives + false_negatives)
             if recall[x] or precision[x]:
                 f1[x] = (2 * precision[x] * recall[x]) / (precision[x] + recall[x])
             else:
                 f1[x] = 0.
+
+            precision5[x] = precisionAt(x, reference_results, results,5)
+
 
         print("Precision: ")
         print(precision)
@@ -149,18 +123,9 @@ def calcMetrics(results, reference):
         print("F1: ")
         print(f1)
         print(average(f1), end="\n\n")
-
-        #for x in reference_results:
-
-        #    true_positives, false_negatives = calcTPFN(x, reference_results, results, 5)
-        #    precision5[x] = float(true_positives) / float(true_positives + (len(reference_results[x]) - true_positives))
-        
-
         print("Precision@5: ")
         print(precision5)
         print(average(precision5), end="\n\n")
-        # calc precison, recall, f1 per doc & avg
-        # avg precision@5 & avg precision
 
 
 def convertXML(xml):
@@ -168,7 +133,7 @@ def convertXML(xml):
 
     for i, sentence in enumerate(xml):
         tokens = sentence.getElementsByTagName('token')
-        result += ' '.join([t.getElementsByTagName('lemma')[0].firstChild.nodeValue for t in tokens])
+        result += ' '.join([t.getElementsByTagName('word')[0].firstChild.nodeValue for t in tokens])
 
     return result
 
@@ -177,7 +142,7 @@ def convertXMLToTaggedSents(xml):
 
     for i, sentence in enumerate(xml):
         tokens = sentence.getElementsByTagName('token')
-        result.append([(t.getElementsByTagName('lemma')[0].firstChild.nodeValue,
+        result.append([(t.getElementsByTagName('word')[0].firstChild.nodeValue,
                         t.getElementsByTagName('POS')[0].firstChild.nodeValue) for t in tokens ])
     return result
 
@@ -224,11 +189,7 @@ def getTFIDFScore(dataset):
 
     vec = TfidfVectorizer(stop_words=stopW, ngram_range=(1, 3), min_df=2)
 
-    #print("start")
-
     X = vec.fit_transform(dataset.values())
-
-    #print("trained")
 
     terms = vec.get_feature_names()
     scoreArr = X.toarray()
@@ -236,12 +197,9 @@ def getTFIDFScore(dataset):
     return merge(dataset, terms, scoreArr)
 
 def main():
-    #print("begin")
     test = getDataFromDir('ake-datasets-master/datasets/500N-KPCrowd/test')
-    #print("gottem")
     data = getTFIDFScore(test)
 
-    #print("start calcs")
     calcMetrics(data, 'ake-datasets-master/datasets/500N-KPCrowd/references/test.reader.stem.json')
     
 
