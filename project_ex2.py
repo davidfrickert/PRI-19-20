@@ -168,7 +168,7 @@ def convertXML(xml):
 
     for i, sentence in enumerate(xml):
         tokens = sentence.getElementsByTagName('token')
-        result += ' '.join([t.getElementsByTagName('word')[0].firstChild.nodeValue for t in tokens])
+        result += ' '.join([t.getElementsByTagName('lemma')[0].firstChild.nodeValue for t in tokens])
 
     return result
 
@@ -177,7 +177,7 @@ def convertXMLToTaggedSents(xml):
 
     for i, sentence in enumerate(xml):
         tokens = sentence.getElementsByTagName('token')
-        result.append([(t.getElementsByTagName('word')[0].firstChild.nodeValue,
+        result.append([(t.getElementsByTagName('lemma')[0].firstChild.nodeValue,
                         t.getElementsByTagName('POS')[0].firstChild.nodeValue) for t in tokens ])
     return result
 
