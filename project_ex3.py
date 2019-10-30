@@ -31,10 +31,14 @@ def getAllChunks(tagged_sents, grammar=r'KT: {(<JJ>* <NN.*>+ <IN>)? <JJ>* <NN.*>
             if cand not in stop_words and not all(char in punct for char in cand)]
 
 
+def getAllCandidates(dataset):
+    return [getAllChunks(text) for text in dataset.values()]
+
+
 def getTFIDFScore(dataset):
     # extract candidates from each text in texts, either chunks or words
 
-    ds = [getAllChunks(text) for text in dataset.values()]
+    ds = getAllCandidates(dataset)
 
     vec = TfidfVectorizer(tokenizer=lambda i: i, lowercase=False)
 
@@ -46,8 +50,7 @@ def getTFIDFScore(dataset):
 
 
 def getBM25Score(dataset, k1=1.2, b=0.75):
-    ds = [getAllChunks(text) for text in dataset.values()]
-    # docs = [for d in dataset.values() for p in d for k in p]
+    ds = getAllCandidates(dataset)
 
     stopW = set(nltk.corpus.stopwords.words('english'))
     documents = []
@@ -69,45 +72,51 @@ def getBM25Score(dataset, k1=1.2, b=0.75):
 
     tf_arr = X.toarray()
     terms = vec_tf.get_feature_names()
-
+    print(terms)
     N = len(dataset)
     avgDL = getAvgDL(ds)
     DF_all = _document_frequency(X)  # .sum()
     score = []
 
-    for i, doc in enumerate(dataset):
+    print(documents[0])
+
+    for i, doc in enumerate(dataset.values()):
         temp = []
         dl = len(list(itertools.chain.from_iterable(doc)))
-        for j in range(len(X.toarray()[0])):
 
+        for j in range(len(terms)):
             DF = DF_all[j]
             tf = tf_arr[i][j]
 
             bm25_idf = log((N - DF + 0.5) / (DF + 0.5), 10)
             bm25_tf = (tf * (k1 + 1)) / (tf + k1 * (1 - b + (b * (dl / avgDL))))
-            temp.append(bm25_tf * bm25_idf)
+
+            # print((N, DF, tf, dl, avgDL))
+
+            # + 1 => BM25+
+            bm25 = bm25_tf * (bm25_idf + 1.)
+            temp.append(bm25 * (len(terms[j])))
         score.append(temp)
-    #  tf = (X[i) / ()
     data = merge(dataset, terms, score)
-    pprint.pprint(data['politics_world-20786243'])
     return data
+
 
 def getAvgDL(all_d):
     return numpy.average([len(d) for d in all_d])
+
 
 # def getTF(term, doc):
 
 
 def main():
     test = getDataFromDir('ake-datasets-master/datasets/500N-KPCrowd/test', mode='list')
-
     results = getBM25Score(test)
 
     # results = getTFIDFScore(test)
     #
-    # print(results['politics_us-20782177'])
+    print(results['art_and_culture-20880868'])
     #
-    calcMetrics(results, 'ake-datasets-master/datasets/500N-KPCrowd/references/test.reader.json')
+    calcMetrics(results, 'ake-datasets-master/datasets/500N-KPCrowd/references/test.reader.stem.json')
     #
 
 
