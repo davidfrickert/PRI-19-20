@@ -21,11 +21,14 @@ def getAllChunks(tagged_sents, grammar=r'KT: {(<JJ>* <NN.*>+ <IN>)? <JJ>* <NN.*>
     stop_words = set(nltk.corpus.stopwords.words('english'))
     chunker = nltk.chunk.regexp.RegexpParser(grammar)
 
-    all_chunks = list(itertools.chain.from_iterable(nltk.chunk.tree2conlltags(chunker.parse(tagged_sent))
-                                                    for tagged_sent in tagged_sents))
+    all_chunks = [nltk.chunk.tree2conlltags(chunker.parse(tagged_sent))
+                                                    for tagged_sent in tagged_sents]
+    candidates = set()
 
-    candidates = set([' '.join(word for word, pos, chunk in group).lower()
-                      for key, group in itertools.groupby(all_chunks, lambda tpl: tpl[2] != 'O') if key])
+    # all_chunks is a list of lists. the inner lists are chunks for each sentence (so we don't have multi-sentence candidates)
+    for sentence in all_chunks:
+        candidates = candidates | set([' '.join(word for word, pos, chunk in group).lower()
+                        for key, group in itertools.groupby(sentence, lambda tpl: tpl[2] != 'O') if key])
 
     return [cand for cand in candidates
             if cand not in stop_words and not all(char in punct for char in cand)]
@@ -72,13 +75,11 @@ def getBM25Score(dataset, k1=1.2, b=0.75):
 
     tf_arr = X.toarray()
     terms = vec_tf.get_feature_names()
-    print(terms)
+
     N = len(dataset)
     avgDL = getAvgDL(ds)
     DF_all = _document_frequency(X)  # .sum()
     score = []
-
-    print(documents[0])
 
     for i, doc in enumerate(dataset.values()):
         temp = []
@@ -98,6 +99,7 @@ def getBM25Score(dataset, k1=1.2, b=0.75):
             temp.append(bm25 * (len(terms[j])))
         score.append(temp)
     data = merge(dataset, terms, score)
+
     return data
 
 
