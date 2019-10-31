@@ -7,8 +7,8 @@ def get_tfidf_score(doc):
     train = fetch_20newsgroups(subset='train', remove=('headers', 'footers', 'quotes'))
 
     vec = TfidfVectorizer(ngram_range=(1, 3), stop_words='english')
-    vec.fit(train.data)
 
+    vec.fit(train.data + doc)
     tf_idf_matrix = vec.transform(doc)
 
     terms = vec.get_feature_names()
