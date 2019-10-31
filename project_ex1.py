@@ -1,7 +1,6 @@
 from sklearn.datasets import fetch_20newsgroups
 from sklearn.feature_extraction.text import TfidfVectorizer
 import pandas as pd
-
 import nltk
 
 def get_tfidf_score(doc):
@@ -24,9 +23,14 @@ def get_tfidf_score(doc):
     print(ranking.sort_values('rank', ascending=False).to_string())
 
 
-with open('text1.txt', 'r') as doc:
-    sent = [' '.join(doc.readlines())]
-    print(sent)
+def main():
+
+    with open('text1.txt', 'r') as doc:
+        sent = [' '.join(doc.readlines())]
+        #print(sent)
+
+    print(get_tfidf_score(sent))
 
 
-print(get_tfidf_score(sent))
+if __name__ == '__main__':
+    main()

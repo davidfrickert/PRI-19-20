@@ -17,7 +17,6 @@ def average(dic):
 
 
 def calcTPFNFP(doc, reference_results, results):
-    # print("\n", doc)
     porter = PorterStemmer()
     true_positives = 0
     false_negatives = 0
@@ -183,7 +182,7 @@ def merge(dataset, terms, scoreArr):
 
             tf_idf = scoreArr[doc_index][word_index]
             if tf_idf != 0:
-                doc_info.append((term, tf_idf * (len(term) / len(term.split(' ')))))
+                doc_info.append((term, tf_idf * (len(term))))# / len(term.split(' ')))))
 
         # sort por tf_idf; elem = (term, tf_idf); elem[1] = tf_idf
         doc_info.sort(key=lambda elem: elem[1], reverse=True)
@@ -195,7 +194,7 @@ def merge(dataset, terms, scoreArr):
 def getTFIDFScore(dataset):
     stopW = set(stopwords.words('english'))
 
-    vec = TfidfVectorizer(stop_words=stopW, ngram_range=(1, 3), min_df=2)
+    vec = TfidfVectorizer(stop_words=stopW, ngram_range=(1, 1), min_df=2)
 
     X = vec.fit_transform(dataset.values())
 
@@ -208,7 +207,6 @@ def getTFIDFScore(dataset):
 def main():
     test = getDataFromDir('ake-datasets-master/datasets/500N-KPCrowd/test')
     data = getTFIDFScore(test)
-
     calcMetrics(data, 'ake-datasets-master/datasets/500N-KPCrowd/references/test.reader.stem.json')
     
 

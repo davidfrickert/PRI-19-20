@@ -36,21 +36,7 @@ def getAllChunks(tagged_sents, grammar=r'KT: {(<JJ>* <NN.*>+ <IN>)? <JJ>* <NN.*>
 
 def getAllCandidates(dataset):
     return [getAllChunks(text) for text in dataset.values()]
-
-
-def getTFIDFScore(dataset):
-    # extract candidates from each text in texts, either chunks or words
-
-    ds = getAllCandidates(dataset)
-
-    vec = TfidfVectorizer(tokenizer=lambda i: i, lowercase=False)
-
-    X = vec.fit_transform(ds).toarray()
-
-    terms = vec.get_feature_names()
-
-    return merge(dataset, terms, X)
-
+    
 
 def getBM25Score(dataset, k1=1.2, b=0.75):
     ds = getAllCandidates(dataset)
@@ -68,9 +54,10 @@ def getBM25Score(dataset, k1=1.2, b=0.75):
 
     vec_tf.fit(ds)
 
-    vec_tf.ngram_range = (1, 5)
+    vec_tf.ngram_range = (1, 2)
     vec_tf.tokenizer = None
     vec_tf.stop_words = stopW
+    vec_tf.min_df = 2
     X = vec_tf.transform(documents)
 
     tf_arr = X.toarray()
@@ -92,11 +79,8 @@ def getBM25Score(dataset, k1=1.2, b=0.75):
             bm25_idf = log((N - DF + 0.5) / (DF + 0.5), 10)
             bm25_tf = (tf * (k1 + 1)) / (tf + k1 * (1 - b + (b * (dl / avgDL))))
 
-            # print((N, DF, tf, dl, avgDL))
-
-            # + 1 => BM25+
-            bm25 = bm25_tf * (bm25_idf + 1.)
-            temp.append(bm25 * (len(terms[j])))
+            bm25 = bm25_tf * (bm25_idf + 1.) 
+            temp.append(bm25 * (len(terms[j]) / len(terms[j].split())))
         score.append(temp)
     data = merge(dataset, terms, score)
 
@@ -107,20 +91,12 @@ def getAvgDL(all_d):
     return numpy.average([len(d) for d in all_d])
 
 
-# def getTF(term, doc):
-
-
 def main():
     test = getDataFromDir('ake-datasets-master/datasets/500N-KPCrowd/test', mode='list')
     results = getBM25Score(test)
 
-    # results = getTFIDFScore(test)
-    #
-    print(results['art_and_culture-20880868'])
-    #
     calcMetrics(results, 'ake-datasets-master/datasets/500N-KPCrowd/references/test.reader.stem.json')
-    #
-
+    
 
 if __name__ == '__main__':
     main()
