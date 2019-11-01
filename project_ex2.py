@@ -177,15 +177,15 @@ def getDataFromDir(path, mode='string'):
 def merge(dataset, terms, scoreArr):
     data = {}
     for doc_index, doc_name in enumerate(dataset):
-        doc_info = []
+        doc_info = {}
         for word_index, term in enumerate(terms):
 
             tf_idf = scoreArr[doc_index][word_index]
             if tf_idf != 0:
-                doc_info.append((term, tf_idf * (len(term))))# / len(term.split(' ')))))
+                doc_info.update({term: tf_idf * (len(term))})# / len(term.split(' ')))})
 
         # sort por tf_idf; elem = (term, tf_idf); elem[1] = tf_idf
-        doc_info.sort(key=lambda elem: elem[1], reverse=True)
+        # doc_info.sort(key=lambda elem: elem[1], reverse=True)
 
         data.update({doc_name: doc_info})
     return data

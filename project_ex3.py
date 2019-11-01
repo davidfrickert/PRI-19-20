@@ -1,6 +1,7 @@
 import itertools
 import pprint
 import sys
+import time
 from math import log
 
 import gensim
@@ -34,14 +35,27 @@ def getAllChunks(tagged_sents, grammar=r'KT: {(<JJ>* <NN.*>+ <IN>)? <JJ>* <NN.*>
             if cand not in stop_words and not all(char in punct for char in cand)]
 
 
+
+
+def getTFIDFScore(dataset):
+    # extract candidates from each text in texts, either chunks or words
+
+    ds = getAllCandidates(dataset)
+
+    vec = TfidfVectorizer(tokenizer=lambda i: i, lowercase=False)
+
+    X = vec.fit_transform(ds).toarray()
+
+    print(X)
+
+    terms = vec.get_feature_names()
+
+    return merge(dataset, terms, X)
+
 def getAllCandidates(dataset):
     return [getAllChunks(text) for text in dataset.values()]
     
-
-def getBM25Score(dataset, k1=1.2, b=0.75):
-    ds = getAllCandidates(dataset)
-
-    stopW = set(nltk.corpus.stopwords.words('english'))
+def listOfTaggedToString(dataset):
     documents = []
 
     for d in dataset.values():
@@ -49,16 +63,22 @@ def getBM25Score(dataset, k1=1.2, b=0.75):
         for p in d:
             arr.append([k[0].lower() for k in p])
         documents.append(' '.join(itertools.chain.from_iterable(arr)))
+    return documents
+
+def getBM25Score(dataset, k1=1.2, b=0.75):
+    ds = getAllCandidates(dataset)
+    # documents = listOfTaggedToString(dataset)
+    stopW = set(nltk.corpus.stopwords.words('english'))
 
     vec_tf = TfidfVectorizer(tokenizer=lambda e: e, lowercase=False, use_idf=False)
 
-    vec_tf.fit(ds)
-
-    vec_tf.ngram_range = (1, 2)
-    vec_tf.tokenizer = None
-    vec_tf.stop_words = stopW
-    vec_tf.min_df = 2
-    X = vec_tf.transform(documents)
+    # vec_tf.fit(ds)
+    #
+    # vec_tf.ngram_range = (1, 2)
+    # vec_tf.tokenizer = None
+    # vec_tf.stop_words = stopW
+    # vec_tf.min_df = 2
+    X = vec_tf.fit_transform(ds)
 
     tf_arr = X.toarray()
     terms = vec_tf.get_feature_names()

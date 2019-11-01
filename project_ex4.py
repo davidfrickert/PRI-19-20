@@ -1,13 +1,13 @@
 import itertools
 import json
-import re
-import time
+import math
 
+import nltk
 from nltk import PorterStemmer
 from sklearn.linear_model import Perceptron
 
 from project_ex2 import getDataFromDir
-from project_ex3 import getAllCandidates, getBM25Score
+from project_ex3 import getAllCandidates, getTFIDFScore, listOfTaggedToString, getBM25Score
 
 
 def createTargetList(reference, term_list):
@@ -30,7 +30,6 @@ def createTargetList(reference, term_list):
                     classes.append(0)
 
             target.update({name: classes})
-    # print(target['art_and_culture-20880868'])
     return target
 
 
@@ -38,68 +37,131 @@ def calculateParameters(all_cands, doc, scores):
     params = []
     for cand in all_cands:
         # p = re.compile(r'\b' + cand + r'\b')
+
         freq = doc.count(cand)
-
-        for bm25score in scores:
-            if bm25score[0] == cand:
-                cand_score = bm25score[1]
-            else:
-                cand_score = 0
-
+        if cand in scores:
+            cand_score = scores[cand]
+        else:
+            cand_score = 0.
         cand_len = len(cand)
         cand_term_count = len(cand.split())
-        # first_match = p.search(doc.lower())
 
-        # # first_occurrence = first_match.start() / len(doc)
-        #
+        words = nltk.pos_tag(nltk.word_tokenize(cand))
+        ne = nltk.tree2conlltags(nltk.ne_chunk(words))
+        ne = [' '.join(word for word, pos, chunk in group).lower()
+              for key, group in itertools.groupby(ne, lambda tpl: tpl[2] != 'O') if key]
+
+        ne_cnt = len(ne[0].split()) if ne else 0
+
+        first_match = doc.find(cand) / len(doc)
+        last_match = doc.rfind(cand) / len(doc)
+
         # if cand_term_count == 1:
-        #     spread = 0.0
-        # #    last_occurrence = first_occurrence
+        #     cohesion = 0.
         # else:
-        #     #
-        #     # match = ''
-        #     #
-        #     # for match in p.finditer(doc):
-        #     #     pass
-        #
-        #     last_occurrence = doc.rfind(cand) / len(doc)
-        #     spread = last_occurrence - first_occurrence
+        #     cohesion = cand_term_count * (1 + math.log(freq, 10)) * freq /
 
-        params.append([freq, cand_len, cand_term_count])
+        if first_match == last_match:
+            spread = 0.
+        else:
+            spread = last_match - first_match
 
+        # print([cand_score, freq, cand_len, cand_term_count, first_match, last_match, spread, ne_cnt])
+
+        params.append([cand_score, freq, cand_len, cand_term_count, first_match, last_match, spread, ne_cnt]) #cand_score,
     return params
+
+
+def calcResults(predicted, true):
+    TP = FP = TN = FN = 0
+    for i, n in enumerate(predicted):
+        if n == 1 and true[i] == 1:
+            TP += 1
+        elif n == 1 and true[i] == 0:
+            FP += 1
+        elif n == 0 and true[i] == 1:
+            FN += 1
+        elif n == 0 and true[i] == 0:
+            TN += 1
+
+    if TP or FP:
+        precision = float(TP) / float(TP + FP)
+    else:
+        precision = 0
+
+    if TP or FN:
+        recall = float(TP) / float(TP + FN)
+    else:
+        recall = 0
+
+    if recall or precision:
+        f1 = (2 * precision * recall) / (precision + recall)
+    else:
+        f1 = 0.
+
+    print('prec')
+    print(precision)
+    print('rec')
+    print(recall)
+    print('f1')
+    print(f1)
+
+    return precision, recall, f1
 
 
 p_classifier = Perceptron(alpha=0.1)
 
 train = getDataFromDir('ake-datasets-master/datasets/500N-KPCrowd/train', mode='list')
-trainStr = getDataFromDir('ake-datasets-master/datasets/500N-KPCrowd/train')
+trainStr = listOfTaggedToString(train)
 
 test = getDataFromDir('ake-datasets-master/datasets/500N-KPCrowd/test', mode='list')
-testStr = getDataFromDir('ake-datasets-master/datasets/500N-KPCrowd/test')
+testStr = listOfTaggedToString(test)
 
 allCandidatesTrain = getAllCandidates(train)
 allCandidatesTest = getAllCandidates(test)
 
-bm25train = getBM25Score(train)
-bm25test = getBM25Score(test)
+bm25train = getTFIDFScore(train)
+bm25test = getTFIDFScore(test)
 
 targets = createTargetList('ake-datasets-master/datasets/500N-KPCrowd/references/train.reader.stem.json',
                            allCandidatesTrain)
 
+testTargets = createTargetList('ake-datasets-master/datasets/500N-KPCrowd/references/test.reader.stem.json',
+                               allCandidatesTest)
+
 for doc_index, doc_name in enumerate(train.keys()):
-    allParams = calculateParameters(allCandidatesTrain[doc_index], trainStr[doc_name].lower(), bm25train[doc_name])
+    allParams = calculateParameters(allCandidatesTrain[doc_index], trainStr[doc_index], bm25train[doc_name])
     if not targets[doc_name].count(0) == len(targets[doc_name]):
+        # print(allParams)
+        # print(targets[doc_name])
         p_classifier.fit(allParams, targets[doc_name])
 
 print('predict')
 
+precision = []
+recall = []
+f1 = []
+
 for doc_index, doc_name in enumerate(test.keys()):
-    allParams = []
+    params = calculateParameters(allCandidatesTest[doc_index], testStr[doc_index], bm25test[doc_name])
 
-    params = calculateParameters(allCandidatesTest[doc_index], testStr[doc_name].lower(), bm25test[doc_name])
+    predicted = p_classifier.predict(params)
+    true = testTargets[doc_name]
 
-    print(p_classifier.predict(params))
+    print('PERCEPTRON')
+    print(predicted)
+    print('REALITY')
+    print(true)
+
+    p, r, f = calcResults(predicted, true)
+
+    precision.append(p)
+    recall.append(r)
+    f1.append(f)
+
+print(sum(precision) / len(precision))
+print(sum(recall) / len(precision))
+print(sum(f1) / len(f1))
 
 # for dos documentos
 # para cada doc_name extrair candidatos
