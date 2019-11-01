@@ -187,6 +187,19 @@ def merge(dataset, terms, scoreArr):
         data.update({doc_name: doc_info})
     return data
 
+def mergeDict(dataset, terms, scoreArr):
+    data = {}
+    for doc_index, doc_name in enumerate(dataset):
+        doc_info = {}
+        for word_index, term in enumerate(terms):
+
+            tf_idf = scoreArr[doc_index][word_index]
+            if tf_idf != 0:
+                doc_info.update({term: tf_idf * (len(term) / len(term.split(' ')))})
+
+        data.update({doc_name: doc_info})
+    return data
+
 def getTFIDFScore(dataset):
     stopW = set(stopwords.words('english'))
 
