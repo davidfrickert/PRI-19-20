@@ -5,16 +5,14 @@ from xml.dom.minidom import parse, parseString
 from sklearn.feature_extraction.text import TfidfVectorizer
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
-from os.path import splitext
-
+from os.path import  splitext
 
 def average(dic):
     total = 0
     for item in dic:
         total += dic[item]
-
+    
     return total / len(dic)
-
 
 def calcTPFNFP(doc, reference_results, results):
     porter = PorterStemmer()
@@ -61,11 +59,11 @@ def calcTPFNFP(doc, reference_results, results):
 
         if flag == 0:
             false_negatives += 1
-
+            
     return true_positives, false_negatives, false_positives
 
-
 def precisionAt(doc, reference_results, results, at):
+    
     porter = PorterStemmer()
     true_positives = 0
     counter = 0
@@ -80,7 +78,7 @@ def precisionAt(doc, reference_results, results, at):
             stemed += porter.stem(w) + " "
 
         stemed = stemed[:-1]
-
+            
         for term in reference_results[doc]:
 
             if stemed == term[0]:
@@ -104,7 +102,7 @@ def calcMetrics(results, reference):
         for x in reference_results:
 
             true_positives, false_negatives, false_positives = calcTPFNFP(x, reference_results, results)
-
+            
             precision[x] = float(true_positives) / float(true_positives + false_positives)
 
             recall[x] = float(true_positives) / float(true_positives + false_negatives)
@@ -135,19 +133,17 @@ def convertXML(xml):
 
     for i, sentence in enumerate(xml):
         tokens = sentence.getElementsByTagName('token')
-        result += ' '.join([t.getElementsByTagName('lemma')[0].firstChild.nodeValue for t in tokens])
-        result += ' '
+        result += ' '.join([t.getElementsByTagName('word')[0].firstChild.nodeValue for t in tokens])
 
     return result
-
 
 def convertXMLToTaggedSents(xml):
     result = []
 
     for i, sentence in enumerate(xml):
         tokens = sentence.getElementsByTagName('token')
-        result.append([(t.getElementsByTagName('lemma')[0].firstChild.nodeValue,
-                        t.getElementsByTagName('POS')[0].firstChild.nodeValue) for t in tokens])
+        result.append([(t.getElementsByTagName('word')[0].firstChild.nodeValue,
+                        t.getElementsByTagName('POS')[0].firstChild.nodeValue) for t in tokens ])
     return result
 
 
@@ -155,12 +151,10 @@ def getDataFromDir(path, mode='string'):
     directory = os.fsencode(path)
 
     docs = {}
-    files = os.listdir(directory)
-    files.sort()
 
-    for f in files:
-
+    for f in os.listdir(directory):
         filePath = path + '/' + f.decode("utf-8")
+
         with open(filePath) as datasource:
             dom = parse(datasource)
             xml = dom.getElementsByTagName('sentence')
@@ -182,7 +176,7 @@ def merge(dataset, terms, scoreArr):
 
             tf_idf = scoreArr[doc_index][word_index]
             if tf_idf != 0:
-                doc_info.append((term, tf_idf * (len(term))))# / len(term.split(' ')))))
+                doc_info.append((term, tf_idf * (len(term)/len(term.split(' ')))))
 
         # sort por tf_idf; elem = (term, tf_idf); elem[1] = tf_idf
         doc_info.sort(key=lambda elem: elem[1], reverse=True)
@@ -190,11 +184,10 @@ def merge(dataset, terms, scoreArr):
         data.update({doc_name: doc_info})
     return data
 
-
 def getTFIDFScore(dataset):
     stopW = set(stopwords.words('english'))
 
-    vec = TfidfVectorizer(stop_words=stopW, ngram_range=(1, 1), min_df=2)
+    vec = TfidfVectorizer(stop_words=stopW, ngram_range=(1, 3), min_df=2)
 
     X = vec.fit_transform(dataset.values())
 
@@ -203,10 +196,10 @@ def getTFIDFScore(dataset):
     
     return merge(dataset, terms, scoreArr)
 
-
 def main():
     test = getDataFromDir('ake-datasets-master/datasets/500N-KPCrowd/test')
     data = getTFIDFScore(test)
+
     calcMetrics(data, 'ake-datasets-master/datasets/500N-KPCrowd/references/test.reader.stem.json')
     
 
