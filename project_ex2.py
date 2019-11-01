@@ -89,6 +89,27 @@ def precisionAt(doc, reference_results, results, at):
 
     return float(true_positives)/float(at)
 
+def meanAvg(doc, reference_results, results):
+    porter = PorterStemmer()
+    correct = 0
+    runningSum = 0
+    
+    tmp = results[doc][:10]
+
+    for i,word in enumerate(tmp):
+        stemed = ""
+
+        for w in word[0].split(' '):
+            stemed += porter.stem(w) + " "
+
+        stemed = stemed[:-1]
+
+        for term in reference_results[doc]:
+
+            if stemed == term[0]:
+                correct += 1
+                runningSum += correct/(i+1)
+                break
 
 def calcMetrics(results, reference):
     with open(reference) as f:
@@ -98,6 +119,7 @@ def calcMetrics(results, reference):
         recall = {}
         f1 = {}
         precision5 = {}
+        _map = {}
 
         for x in reference_results:
 
@@ -112,6 +134,7 @@ def calcMetrics(results, reference):
                 f1[x] = 0.
 
             precision5[x] = precisionAt(x, reference_results, results,5)
+            _map[x] = meanAvg(x,reference_results,results)
 
 
         print("Precision: ")
@@ -126,6 +149,8 @@ def calcMetrics(results, reference):
         print("Precision@5: ")
         print(precision5)
         print(average(precision5), end="\n\n")
+        print("Mean Avg Precision:")
+        print(average(_map))
 
 
 def convertXML(xml):
