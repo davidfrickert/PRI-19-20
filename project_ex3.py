@@ -16,6 +16,7 @@ from project_ex2 import getDataFromDir, calcMetrics, merge, mergeDict
 
 numpy.set_printoptions(threshold=sys.maxsize)
 
+
 def findBiggestGram(candidates):
     max_gram = 0
     for doc in candidates:
@@ -24,24 +25,23 @@ def findBiggestGram(candidates):
             max_gram = gram if gram > max_gram else max_gram
     return max_gram
 
+
 def getAllChunks(tagged_sents, grammar=r'KT: {(<JJ>* <NN.*>+ <IN>)? <JJ>* <NN.*>+}'):
     punct = set(string.punctuation)
     stop_words = set(nltk.corpus.stopwords.words('english'))
     chunker = nltk.chunk.regexp.RegexpParser(grammar)
 
     all_chunks = [nltk.chunk.tree2conlltags(chunker.parse(tagged_sent))
-                                                    for tagged_sent in tagged_sents]
+                  for tagged_sent in tagged_sents]
     candidates = set()
 
     # all_chunks is a list of lists. the inner lists are chunks for each sentence (so we don't have multi-sentence candidates)
     for sentence in all_chunks:
         candidates = candidates | set([' '.join(word for word, pos, chunk in group).lower()
-                        for key, group in itertools.groupby(sentence, lambda tpl: tpl[2] != 'O') if key])
+                                       for key, group in itertools.groupby(sentence, lambda tpl: tpl[2] != 'O') if key])
 
     return [cand for cand in candidates
             if cand not in stop_words and not all(char in punct for char in cand)]
-
-
 
 
 def getTFIDFScore(dataset, mergetype='list'):
@@ -67,9 +67,11 @@ def getTFIDFScore(dataset, mergetype='list'):
     else:
         return merge(dataset, terms, X)
 
+
 def getAllCandidates(dataset):
     return [getAllChunks(text) for text in dataset.values()]
-    
+
+
 def listOfTaggedToString(dataset):
     documents = []
 
@@ -80,6 +82,7 @@ def listOfTaggedToString(dataset):
         documents.append(' '.join(itertools.chain.from_iterable(arr)))
     return documents
 
+
 def listOfTaggedToListOfWords(dataset):
     documents = []
     stop_words = set(nltk.corpus.stopwords.words('english'))
@@ -89,12 +92,11 @@ def listOfTaggedToListOfWords(dataset):
         for ph in d:
             for w_tag in ph:
                 word = w_tag[0].lower()
-                if word not in stop_words and not all(char in punct for char in word):
+                if not all(char in punct for char in word):
                     doc_i.append(word)
         documents.append(doc_i)
-        # print(doc_i)
-    print(documents)
     return documents
+
 
 def getBM25Score(dataset, k1=1.2, b=0.75, mergetype='list'):
     ds = getAllCandidates(dataset)
@@ -105,11 +107,15 @@ def getBM25Score(dataset, k1=1.2, b=0.75, mergetype='list'):
     vec_tf = TfidfVectorizer(tokenizer=lambda e: e, lowercase=False, use_idf=False)
 
     vec_tf.fit(ds)
+
     #
     vec_tf.ngram_range = (1, findBiggestGram(ds))
     # vec_tf.tokenizer = None
     # vec_tf.stop_words = stopW
     # vec_tf.min_df = 2
+
+    terms = vec_tf.get_feature_names()
+
     X = vec_tf.transform(words)
 
     tf_arr = X.toarray()
@@ -131,16 +137,14 @@ def getBM25Score(dataset, k1=1.2, b=0.75, mergetype='list'):
             bm25_idf = log((N - DF + 0.5) / (DF + 0.5), 10)
             bm25_tf = (tf * (k1 + 1)) / (tf + k1 * (1 - b + (b * (dl / avgDL))))
 
-            bm25 = bm25_tf * (bm25_idf + 1.) 
+            bm25 = bm25_tf * (bm25_idf + 1.)
             temp.append(bm25 * (len(terms[j]) / len(terms[j].split())))
         score.append(temp)
-
 
     if mergetype == 'dict':
         return mergeDict(dataset, terms, score)
     else:
         return merge(dataset, terms, score)
-
 
 
 def getAvgDL(all_d):

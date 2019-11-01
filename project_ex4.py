@@ -35,14 +35,19 @@ def createTargetList(reference, term_list):
 
 def calculateParameters(all_cands, doc, scores):
     params = []
+
+    max_cand_score = max(scores.values())
+
     for cand in all_cands:
-        # p = re.compile(r'\b' + cand + r'\b')
 
         freq = doc.count(cand)
-        if cand in scores:
-            cand_score = scores[cand]
-        else:
+
+        if cand not in scores:
             cand_score = 0.
+            print(cand)
+        else:
+            cand_score = scores[cand] / max_cand_score
+
         cand_len = len(cand)
         cand_term_count = len(cand.split())
 
@@ -120,8 +125,19 @@ testStr = listOfTaggedToString(test)
 allCandidatesTrain = getAllCandidates(train)
 allCandidatesTest = getAllCandidates(test)
 
-bm25train = getTFIDFScore(train)
-bm25test = getTFIDFScore(test)
+
+# bm25
+# 0.3558736870896098
+# 0.7640337163696295
+# 0.4607649659785287
+
+# TF IDF
+# 0.37863851957992073
+# 0.31571002226187983
+# 0.3159382700815522
+
+bm25train = getBM25Score(train, mergetype='dict')
+bm25test = getBM25Score(test, mergetype='dict')
 
 targets = createTargetList('ake-datasets-master/datasets/500N-KPCrowd/references/train.reader.stem.json',
                            allCandidatesTrain)
@@ -132,8 +148,6 @@ testTargets = createTargetList('ake-datasets-master/datasets/500N-KPCrowd/refere
 for doc_index, doc_name in enumerate(train.keys()):
     allParams = calculateParameters(allCandidatesTrain[doc_index], trainStr[doc_index], bm25train[doc_name])
     if not targets[doc_name].count(0) == len(targets[doc_name]):
-        # print(allParams)
-        # print(targets[doc_name])
         p_classifier.fit(allParams, targets[doc_name])
 
 print('predict')
