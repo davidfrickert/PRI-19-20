@@ -12,10 +12,17 @@ import numpy
 
 from sklearn.feature_extraction.text import TfidfVectorizer, _document_frequency
 
-from project_ex2 import getDataFromDir, calcMetrics, merge
+from project_ex2 import getDataFromDir, calcMetrics, merge, mergeDict
 
 numpy.set_printoptions(threshold=sys.maxsize)
 
+def findBiggestGram(candidates):
+    max_gram = 0
+    for doc in candidates:
+        for cand in doc:
+            gram = len(cand.split())
+            max_gram = gram if gram > max_gram else max_gram
+    return max_gram
 
 def getAllChunks(tagged_sents, grammar=r'KT: {(<JJ>* <NN.*>+ <IN>)? <JJ>* <NN.*>+}'):
     punct = set(string.punctuation)
@@ -37,20 +44,28 @@ def getAllChunks(tagged_sents, grammar=r'KT: {(<JJ>* <NN.*>+ <IN>)? <JJ>* <NN.*>
 
 
 
-def getTFIDFScore(dataset):
+def getTFIDFScore(dataset, mergetype='list'):
     # extract candidates from each text in texts, either chunks or words
 
     ds = getAllCandidates(dataset)
+    words = listOfTaggedToListOfWords(dataset)
 
     vec = TfidfVectorizer(tokenizer=lambda i: i, lowercase=False)
 
-    X = vec.fit_transform(ds).toarray()
+    vec.fit(ds)
 
-    print(X)
+    vec.ngram_range = (1, findBiggestGram(ds))
+
+    X = vec.transform(words).toarray()
+
+    # print(X)
 
     terms = vec.get_feature_names()
 
-    return merge(dataset, terms, X)
+    if mergetype == 'dict':
+        return mergeDict(dataset, terms, X)
+    else:
+        return merge(dataset, terms, X)
 
 def getAllCandidates(dataset):
     return [getAllChunks(text) for text in dataset.values()]
@@ -65,20 +80,37 @@ def listOfTaggedToString(dataset):
         documents.append(' '.join(itertools.chain.from_iterable(arr)))
     return documents
 
-def getBM25Score(dataset, k1=1.2, b=0.75):
+def listOfTaggedToListOfWords(dataset):
+    documents = []
+    stop_words = set(nltk.corpus.stopwords.words('english'))
+    punct = set(string.punctuation)
+    for d in dataset.values():
+        doc_i = []
+        for ph in d:
+            for w_tag in ph:
+                word = w_tag[0].lower()
+                if word not in stop_words and not all(char in punct for char in word):
+                    doc_i.append(word)
+        documents.append(doc_i)
+        # print(doc_i)
+    print(documents)
+    return documents
+
+def getBM25Score(dataset, k1=1.2, b=0.75, mergetype='list'):
     ds = getAllCandidates(dataset)
+    words = listOfTaggedToListOfWords(dataset)
     # documents = listOfTaggedToString(dataset)
-    stopW = set(nltk.corpus.stopwords.words('english'))
+    # stopW = set(nltk.corpus.stopwords.words('english'))
 
     vec_tf = TfidfVectorizer(tokenizer=lambda e: e, lowercase=False, use_idf=False)
 
-    # vec_tf.fit(ds)
+    vec_tf.fit(ds)
     #
-    # vec_tf.ngram_range = (1, 2)
+    vec_tf.ngram_range = (1, findBiggestGram(ds))
     # vec_tf.tokenizer = None
     # vec_tf.stop_words = stopW
     # vec_tf.min_df = 2
-    X = vec_tf.fit_transform(ds)
+    X = vec_tf.transform(words)
 
     tf_arr = X.toarray()
     terms = vec_tf.get_feature_names()
@@ -102,9 +134,13 @@ def getBM25Score(dataset, k1=1.2, b=0.75):
             bm25 = bm25_tf * (bm25_idf + 1.) 
             temp.append(bm25 * (len(terms[j]) / len(terms[j].split())))
         score.append(temp)
-    data = merge(dataset, terms, score)
 
-    return data
+
+    if mergetype == 'dict':
+        return mergeDict(dataset, terms, score)
+    else:
+        return merge(dataset, terms, score)
+
 
 
 def getAvgDL(all_d):
@@ -112,11 +148,13 @@ def getAvgDL(all_d):
 
 
 def main():
-    test = getDataFromDir('ake-datasets-master/datasets/500N-KPCrowd/test', mode='list')
-    results = getBM25Score(test)
+    train = getDataFromDir('ake-datasets-master/datasets/500N-KPCrowd/train', mode='list')
+    results = getBM25Score(train)
+    results_ = getTFIDFScore(train)
 
-    calcMetrics(results, 'ake-datasets-master/datasets/500N-KPCrowd/references/test.reader.stem.json')
-    
+    calcMetrics(results, 'ake-datasets-master/datasets/500N-KPCrowd/references/train.reader.stem.json')
+    calcMetrics(results_, 'ake-datasets-master/datasets/500N-KPCrowd/references/train.reader.stem.json')
+
 
 if __name__ == '__main__':
     main()
