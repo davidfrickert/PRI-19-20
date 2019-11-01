@@ -85,7 +85,6 @@ def listOfTaggedToString(dataset):
 
 def listOfTaggedToListOfWords(dataset):
     documents = []
-    stop_words = set(nltk.corpus.stopwords.words('english'))
     punct = set(string.punctuation)
     for d in dataset.values():
         doc_i = []
@@ -98,7 +97,7 @@ def listOfTaggedToListOfWords(dataset):
     return documents
 
 
-def getBM25Score(dataset, k1=1.2, b=0.75, mergetype='list'):
+def getBM25Score(dataset, k1=1.2, b=0.75, mergetype='list', min_df=2):
     ds = getAllCandidates(dataset)
     words = listOfTaggedToListOfWords(dataset)
     # documents = listOfTaggedToString(dataset)
@@ -119,7 +118,6 @@ def getBM25Score(dataset, k1=1.2, b=0.75, mergetype='list'):
     X = vec_tf.transform(words)
 
     tf_arr = X.toarray()
-    terms = vec_tf.get_feature_names()
 
     N = len(dataset)
     avgDL = getAvgDL(ds)
@@ -138,7 +136,7 @@ def getBM25Score(dataset, k1=1.2, b=0.75, mergetype='list'):
             bm25_tf = (tf * (k1 + 1)) / (tf + k1 * (1 - b + (b * (dl / avgDL))))
 
             bm25 = bm25_tf * (bm25_idf + 1.)
-            if DF > 1:
+            if DF >= min_df:
                 temp.append(bm25 * (len(terms[j]) / len(terms[j].split())))
             else:
                 temp.append(0.)

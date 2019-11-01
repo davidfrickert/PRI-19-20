@@ -94,7 +94,7 @@ def meanAvg(doc, reference_results, results):
     correct = 0
     runningSum = 0
     
-    tmp = results[doc][:10]
+    tmp = results[doc][:len(reference_results)]
 
     for i,word in enumerate(tmp):
         stemed = ""

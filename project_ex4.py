@@ -56,7 +56,6 @@ def calculateParameters(all_cands, doc, scores):
 
         if cand not in scores:
             cand_score = 0.
-            print(cand)
         else:
             cand_score = scores[cand] # / max_cand_score
 
@@ -115,8 +114,8 @@ allCandidatesTest = getAllCandidates(test)
 # 0.31571002226187983
 # 0.3159382700815522
 
-bm25train = getBM25Score(train, mergetype='dict')
-bm25test = getBM25Score(test, mergetype='dict')
+bm25train = getBM25Score(train, mergetype='dict', min_df=1)
+bm25test = getBM25Score(test, mergetype='dict', min_df=1)
 
 targets = createTargetList('ake-datasets-master/datasets/500N-KPCrowd/references/train.reader.stem.json',
                            allCandidatesTrain)
