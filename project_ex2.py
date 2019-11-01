@@ -5,8 +5,7 @@ from xml.dom.minidom import parse, parseString
 from sklearn.feature_extraction.text import TfidfVectorizer
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
-from os.path import splitext
-
+from os.path import  splitext
 
 def average(dic):
     total = 0
@@ -14,7 +13,6 @@ def average(dic):
         total += dic[item]
 
     return total / len(dic)
-
 
 def calcTPFNFP(doc, reference_results, results):
     porter = PorterStemmer()
@@ -64,8 +62,8 @@ def calcTPFNFP(doc, reference_results, results):
 
     return true_positives, false_negatives, false_positives
 
-
 def precisionAt(doc, reference_results, results, at):
+
     porter = PorterStemmer()
     true_positives = 0
     counter = 0
@@ -140,7 +138,6 @@ def convertXML(xml):
 
     return result
 
-
 def convertXMLToTaggedSents(xml):
     result = []
 
@@ -177,24 +174,23 @@ def getDataFromDir(path, mode='string'):
 def merge(dataset, terms, scoreArr):
     data = {}
     for doc_index, doc_name in enumerate(dataset):
-        doc_info = {}
+        doc_info = []
         for word_index, term in enumerate(terms):
 
             tf_idf = scoreArr[doc_index][word_index]
             if tf_idf != 0:
-                doc_info.update({term: tf_idf * (len(term))})# / len(term.split(' ')))})
+                doc_info.append((term, tf_idf * (len(term)/len(term.split(' ')))))
 
         # sort por tf_idf; elem = (term, tf_idf); elem[1] = tf_idf
-        # doc_info.sort(key=lambda elem: elem[1], reverse=True)
+        doc_info.sort(key=lambda elem: elem[1], reverse=True)
 
         data.update({doc_name: doc_info})
     return data
 
-
 def getTFIDFScore(dataset):
     stopW = set(stopwords.words('english'))
 
-    vec = TfidfVectorizer(stop_words=stopW, ngram_range=(1, 1), min_df=2)
+    vec = TfidfVectorizer(stop_words=stopW, ngram_range=(1, 3), min_df=2)
 
     X = vec.fit_transform(dataset.values())
 
@@ -207,6 +203,7 @@ def getTFIDFScore(dataset):
 def main():
     test = getDataFromDir('ake-datasets-master/datasets/500N-KPCrowd/test')
     data = getTFIDFScore(test)
+
     calcMetrics(data, 'ake-datasets-master/datasets/500N-KPCrowd/references/test.reader.stem.json')
     
 
