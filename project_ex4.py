@@ -1,13 +1,18 @@
 import itertools
 import json
 import math
+import pprint
+import time
 
 import nltk
 from nltk import PorterStemmer
 from sklearn.linear_model import Perceptron
+from sklearn.metrics import precision_score, f1_score, recall_score, average_precision_score
 
 from project_ex2 import getDataFromDir
 from project_ex3 import getAllCandidates, getTFIDFScore, listOfTaggedToString, getBM25Score
+import sklearn.metrics
+
 
 
 def createTargetList(reference, term_list):
@@ -22,9 +27,16 @@ def createTargetList(reference, term_list):
                 values = list(itertools.chain.from_iterable(doc_values))
 
                 porter = PorterStemmer()
-                s_term = porter.stem(term)
 
-                if s_term in values:
+                stemmed = ""
+
+                for w in term.split():
+                    stemmed += porter.stem(w) + " "
+                stemmed = stemmed[:-1]
+
+                # s_term = porter.stem(term)
+
+                if stemmed in values:
                     classes.append(1)
                 else:
                     classes.append(0)
@@ -46,7 +58,7 @@ def calculateParameters(all_cands, doc, scores):
             cand_score = 0.
             print(cand)
         else:
-            cand_score = scores[cand] / max_cand_score
+            cand_score = scores[cand] # / max_cand_score
 
         cand_len = len(cand)
         cand_term_count = len(cand.split())
@@ -73,45 +85,12 @@ def calculateParameters(all_cands, doc, scores):
 
         # print([cand_score, freq, cand_len, cand_term_count, first_match, last_match, spread, ne_cnt])
 
-        params.append([cand_score, freq, cand_len, cand_term_count, first_match, last_match, spread, ne_cnt]) #cand_score,
+        params.append([cand_score, cand_len, cand_term_count, first_match, last_match, spread]) #cand_score,
     return params
 
 
 def calcResults(predicted, true):
-    TP = FP = TN = FN = 0
-    for i, n in enumerate(predicted):
-        if n == 1 and true[i] == 1:
-            TP += 1
-        elif n == 1 and true[i] == 0:
-            FP += 1
-        elif n == 0 and true[i] == 1:
-            FN += 1
-        elif n == 0 and true[i] == 0:
-            TN += 1
-
-    if TP or FP:
-        precision = float(TP) / float(TP + FP)
-    else:
-        precision = 0
-
-    if TP or FN:
-        recall = float(TP) / float(TP + FN)
-    else:
-        recall = 0
-
-    if recall or precision:
-        f1 = (2 * precision * recall) / (precision + recall)
-    else:
-        f1 = 0.
-
-    print('prec')
-    print(precision)
-    print('rec')
-    print(recall)
-    print('f1')
-    print(f1)
-
-    return precision, recall, f1
+    return precision_score(true, predicted), recall_score(true, predicted), f1_score(true, predicted), average_precision_score(true, predicted)
 
 
 p_classifier = Perceptron(alpha=0.1)
@@ -155,6 +134,7 @@ print('predict')
 precision = []
 recall = []
 f1 = []
+ap = []
 
 for doc_index, doc_name in enumerate(test.keys()):
     params = calculateParameters(allCandidatesTest[doc_index], testStr[doc_index], bm25test[doc_name])
@@ -167,15 +147,18 @@ for doc_index, doc_name in enumerate(test.keys()):
     print('REALITY')
     print(true)
 
-    p, r, f = calcResults(predicted, true)
+    p, r, f, aps = calcResults(predicted, true)
 
     precision.append(p)
     recall.append(r)
     f1.append(f)
+    ap.append(aps)
 
+print('--RESULTS--')
 print(sum(precision) / len(precision))
 print(sum(recall) / len(precision))
 print(sum(f1) / len(f1))
+print(sum(ap) / len(ap))
 
 # for dos documentos
 # para cada doc_name extrair candidatos

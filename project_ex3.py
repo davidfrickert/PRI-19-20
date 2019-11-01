@@ -138,7 +138,10 @@ def getBM25Score(dataset, k1=1.2, b=0.75, mergetype='list'):
             bm25_tf = (tf * (k1 + 1)) / (tf + k1 * (1 - b + (b * (dl / avgDL))))
 
             bm25 = bm25_tf * (bm25_idf + 1.)
-            temp.append(bm25 * (len(terms[j]) / len(terms[j].split())))
+            if DF > 1:
+                temp.append(bm25 * (len(terms[j]) / len(terms[j].split())))
+            else:
+                temp.append(0.)
         score.append(temp)
 
     if mergetype == 'dict':

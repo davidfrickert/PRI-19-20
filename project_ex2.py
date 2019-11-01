@@ -110,6 +110,7 @@ def meanAvg(doc, reference_results, results):
                 correct += 1
                 runningSum += correct/(i+1)
                 break
+    return float(runningSum) / float(len(reference_results[doc]))
 
 def calcMetrics(results, reference):
     with open(reference) as f:
@@ -217,7 +218,6 @@ def mergeDict(dataset, terms, scoreArr):
     for doc_index, doc_name in enumerate(dataset):
         doc_info = {}
         for word_index, term in enumerate(terms):
-
             tf_idf = scoreArr[doc_index][word_index]
             if tf_idf != 0:
                 doc_info.update({term: tf_idf * (len(term) / len(term.split(' ')))})
@@ -239,10 +239,10 @@ def getTFIDFScore(dataset):
 
 
 def main():
-    test = getDataFromDir('ake-datasets-master/datasets/500N-KPCrowd/test')
+    test = getDataFromDir('ake-datasets-master/datasets/500N-KPCrowd/train')
     data = getTFIDFScore(test)
 
-    calcMetrics(data, 'ake-datasets-master/datasets/500N-KPCrowd/references/test.reader.stem.json')
+    calcMetrics(data, 'ake-datasets-master/datasets/500N-KPCrowd/references/train.reader.stem.json')
     
 
 if __name__ == '__main__':
