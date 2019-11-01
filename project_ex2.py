@@ -110,6 +110,8 @@ def meanAvg(doc, reference_results, results):
                 correct += 1
                 runningSum += correct/(i+1)
                 break
+                
+    return float(correct)/float(len(reference_results[doc]))
 
 def calcMetrics(results, reference):
     with open(reference) as f:
