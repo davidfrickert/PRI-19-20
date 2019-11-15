@@ -10,13 +10,19 @@ def buildGramsUpToN(doc, n):
     doc = doc.lower()
     invalid = set(stopwords.words('english'))
 
-    s = [sentence.strip(string.punctuation) for sentence in nltk.sent_tokenize(doc)]
+    s = [sentence.translate(str.maketrans('', '', string.punctuation)) for sentence in nltk.sent_tokenize(doc)]
     sents = [nltk.word_tokenize(_) for _ in s]
 
+    # remove stop_words
+
     for sentence in sents:
+        tormv = []
         for word in sentence:
             if word in invalid:
-                sentence.remove(word)
+                tormv.append(word)
+        [sentence.remove(w) for w in tormv]
+
+    # end remove stop_words
 
     for sent in sents:
         ngram_list = []
@@ -28,7 +34,6 @@ def buildGramsUpToN(doc, n):
 
 
 def main():
-
     with open('nyt.txt', 'r') as doc:
         # Step 1
         # Read document and build ngrams. Results is List of List of ngrams (each inner List is all ngrams of sentence)
@@ -53,9 +58,6 @@ def main():
         [g.add_edges_from(itertools.combinations(ngrams[i], 2)) for i in range(len(ngrams))]
 
         # print('Edges', g.edges)
-
-
-
 
 
 main()
