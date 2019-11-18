@@ -1,6 +1,7 @@
 import json
 import operator
 from collections import OrderedDict
+import csv
 
 import networkx
 from networkx import pagerank
@@ -9,17 +10,22 @@ import string
 from nltk.corpus import stopwords
 import itertools
 
+import matplotlib.pyplot as plt
+
+
 class Helper:
     @staticmethod
     def dictToOrderedList(d: dict, rev=False):
         return sorted(d.items(), key=operator.itemgetter(1), reverse=rev)
+
 
 def buildGramsUpToN(doc, n):
     ngrams = []
     doc = doc.lower()
     invalid = set(stopwords.words('english'))
 
-    s = [sentence.translate(str.maketrans('', '', string.punctuation)) for sentence in nltk.sent_tokenize(doc)]
+    s = [sentence.translate(str.maketrans(string.punctuation, ' ' * len(string.punctuation))) for sentence in
+         nltk.sent_tokenize(doc)]
     sents = [nltk.word_tokenize(_) for _ in s]
 
     # remove stop_words
@@ -42,31 +48,8 @@ def buildGramsUpToN(doc, n):
     return ngrams
 
 
-def undirectedPR(g: networkx.Graph, n_iter=1, d=0.15):
-    # N is the total number of candidates
-    N = len(g.nodes)
-    pr = pagerank(g)
-
-    # cand := pi, calculate PR(pi) for all nodes
-    for _ in range(n_iter):
-        pr_pi = {}
-        for cand in g.nodes:
-            pi_links = g.edges(cand)
-            # e = (pi, pj)
-            # pj = e[1]
-            # PR(pj) = pr[pj] = pr[e[1]]
-            # Links(pj) = g.edges(pj) = g.edges(e[1])
-            sum_pr_pj = sum([pr[e[1]] / len(g.edges(e[1])) for e in pi_links])
-            pr_pi[cand] = d / N + (1 - d) * sum_pr_pj
-
-        print(Helper.dictToOrderedList(pr_pi, rev=True))
-
-        pr = pr_pi
-    return OrderedDict(Helper.dictToOrderedList(pr_pi, rev=True)[:5])
-
-
-def main():
-    with open('nyt.txt', 'r') as doc:
+def buildGraph(filename, co_occurence_window=2):
+    with open(filename, 'r') as doc:
         # Step 1
         # Read document and build ngrams. Results is List of List of ngrams (each inner List is all ngrams of sentence)
         doc = ' '.join(doc.readlines())
@@ -92,9 +75,51 @@ def main():
 
         # print('Edges', g.edges)
 
-        pr = undirectedPR(g, n_iter=50)
+        pr = undirectedPR(g, n_iter=1)
 
         print('Final PR', pr)
+
+        pos = networkx.spring_layout(g)
+
+        networkx.draw_networkx_nodes(g, pos, node_size=2000)
+
+        networkx.draw_networkx_edges(g, pos, edgelist=g.edges,
+                                     width=6)
+
+        networkx.draw_networkx_labels(g, pos, font_size=15, font_family='sans-serif')
+        plt.axis('off')
+        plt.show()
+
+
+def undirectedPR(g: networkx.Graph, n_iter=1, d=0.15):
+    # N is the total number of candidates
+    N = len(g.nodes)
+    pr = pagerank(g)
+
+    # cand := pi, calculate PR(pi) for all nodes
+    for _ in range(n_iter):
+        pr_pi = {}
+        for cand in g.nodes:
+            pi_links = g.edges(cand)
+            # e = (pi, pj)
+            # pj = e[1]
+            # PR(pj) = pr[pj] = pr[e[1]]
+            # Links(pj) = g.edges(pj) = g.edges(e[1])
+            sum_pr_pj = sum([pr[e[1]] / len(g.edges(e[1])) for e in pi_links])
+            pr_pi[cand] = d / N + (1 - d) * sum_pr_pj
+
+        print(Helper.dictToOrderedList(pr_pi, rev=True))
+
+        pr = pr_pi
+    with open('pr.csv', 'w', newline='') as f:
+        writer = csv.writer(f)
+        for k, v in pr.items():
+            writer.writerow([k, v])
+    return OrderedDict(Helper.dictToOrderedList(pr_pi, rev=True)[:5])
+
+
+def main():
+    buildGraph('small.txt')
 
 
 main()
