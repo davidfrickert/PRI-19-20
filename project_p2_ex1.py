@@ -9,6 +9,7 @@ from concurrent.futures import as_completed
 from concurrent.futures.process import ProcessPoolExecutor
 from concurrent.futures.thread import ThreadPoolExecutor
 from os.path import splitext
+from platform import system
 from statistics import mean
 from xml.dom.minidom import parse
 
@@ -18,6 +19,7 @@ from networkx import pagerank
 from nltk.corpus import stopwords
 from sklearn.metrics import average_precision_score
 
+stop_words = set(stopwords.words('english'))
 
 class Helper:
     @staticmethod
@@ -36,8 +38,7 @@ class Helper:
 
     @staticmethod
     def filterStopWords(doc: str):
-        stopW = set(stopwords.words('english'))
-        return ' '.join([word for word in nltk.word_tokenize(doc) if word not in stopW])
+        return ' '.join([word for word in nltk.word_tokenize(doc) if word not in stop_words])
 
     @staticmethod
     def getDataFromDir(path, mode='string'):
@@ -107,7 +108,6 @@ class Helper:
 def buildGramsUpToN(doc, n):
     ngrams = []
     doc = doc.lower()
-    invalid = set(stopwords.words('english'))
 
     s = [sentence.translate(str.maketrans(string.punctuation, ' ' * len(string.punctuation))) for sentence in
          nltk.sent_tokenize(doc)]
@@ -118,7 +118,7 @@ def buildGramsUpToN(doc, n):
     for sentence in sents:
         tormv = []
         for word in sentence:
-            if word in invalid:
+            if word in stop_words:
                 tormv.append(word)
         [sentence.remove(w) for w in tormv]
 
@@ -209,11 +209,14 @@ def main():
     # with open('nyt.txt', 'r') as doc:
     #     doc = ' '.join(doc.readlines())
 
-    # single_threaded(test)
-    multi_threaded(test)
+    # if windows do single process because multiprocess not working
+    if system() == 'Windows':
+        single_process(test)
+    else:
+        multi_process(test)
 
 
-def multi_threaded(test):
+def multi_process(test):
     with ProcessPoolExecutor(max_workers=4) as executor:
         fts = {}
         kfs = {}
@@ -227,7 +230,7 @@ def multi_threaded(test):
     print(f'Mean Avg Pre for {len(kfs.keys())} documents: ', meanAPre)
 
 
-def single_threaded(test):
+def single_process(test):
     kfs = {}
     for file in test:
         kf = buildGraph(test[file].lower())
