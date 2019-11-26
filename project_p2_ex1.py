@@ -1,22 +1,107 @@
+import csv
+import itertools
 import json
 import operator
+import os
+import string
 from collections import OrderedDict
-import csv
+from concurrent.futures import as_completed
+from concurrent.futures.process import ProcessPoolExecutor
+from concurrent.futures.thread import ThreadPoolExecutor
+from os.path import splitext
+from statistics import mean
+from xml.dom.minidom import parse
 
 import networkx
-from networkx import pagerank
 import nltk
-import string
+from networkx import pagerank
 from nltk.corpus import stopwords
-import itertools
-
-import matplotlib.pyplot as plt
+from sklearn.metrics import average_precision_score
 
 
 class Helper:
     @staticmethod
     def dictToOrderedList(d: dict, rev=False):
         return sorted(d.items(), key=operator.itemgetter(1), reverse=rev)
+
+    @staticmethod
+    def getMaxDiff(pr0, pr1):
+        return max(map(float.__sub__, pr1, pr0))
+
+    @staticmethod
+    def stemKF(kf):
+        stemmer = nltk.PorterStemmer()
+        words = nltk.word_tokenize(kf)
+        return ' '.join([stemmer.stem(w) for w in words])
+
+    @staticmethod
+    def filterStopWords(doc: str):
+        stopW = set(stopwords.words('english'))
+        return ' '.join([word for word in nltk.word_tokenize(doc) if word not in stopW])
+
+    @staticmethod
+    def getDataFromDir(path, mode='string'):
+        directory = os.fsencode(path)
+
+        docs = {}
+
+        for f in os.listdir(directory):
+            filePath = path + '/' + f.decode("utf-8")
+
+            with open(filePath, encoding='utf8') as datasource:
+                dom = parse(datasource)
+                xml = dom.getElementsByTagName('sentence')
+
+                doc_name = splitext(f)[0].decode("utf-8")
+                if mode == 'string':
+                    docs.update({doc_name: Helper.convertXML(xml)})
+                else:
+                    docs.update({doc_name: Helper.convertXMLToTaggedSents(xml)})
+
+        return docs
+
+    @staticmethod
+    def convertXML(xml):
+        result = ""
+
+        for i, sentence in enumerate(xml):
+            SEPARATOR = '\r\n'
+            tokens = sentence.getElementsByTagName('token')
+            result += ' '.join([t.getElementsByTagName('word')[0].firstChild.nodeValue for t in tokens])
+            if not result.endswith('.'):
+                result += '.'
+            result += SEPARATOR
+
+        return result
+
+    @staticmethod
+    def convertXMLToTaggedSents(xml):
+        result = []
+
+        for i, sentence in enumerate(xml):
+            tokens = sentence.getElementsByTagName('token')
+            result.append([(t.getElementsByTagName('lemma')[0].firstChild.nodeValue,
+                            t.getElementsByTagName('POS')[0].firstChild.nodeValue) for t in tokens])
+        return result
+
+    @staticmethod
+    def results(pr, reference, nvals=50):
+        avg_prec = {}
+        with open(reference) as f:
+            reference_results = json.load(f)
+            for doc_name in pr.keys():
+                doc_results = set(itertools.chain.from_iterable(reference_results[doc_name]))
+                kf_results = set([Helper.stemKF(kf) for kf in pr[doc_name][:nvals]])
+                y_true = [1 if kf in doc_results else 0 for kf in (kf_results.union(doc_results))]
+                y_score = [1 if kf in kf_results else 0 for kf in (kf_results.union(doc_results))]
+                if len(y_score) > len(y_true):
+                    y_score = y_score[:y_true]
+                else:
+                    while len(y_score) < len(y_true):
+                        y_score.append(0)
+                avg_prec.update({doc_name: average_precision_score(y_true, y_score)})
+        meanAPre = mean(avg_prec.values())
+        return meanAPre
 
 
 def buildGramsUpToN(doc, n):
@@ -48,51 +133,52 @@ def buildGramsUpToN(doc, n):
     return ngrams
 
 
-def buildGraph(filename, co_occurence_window=2):
-    with open(filename, 'r') as doc:
-        # Step 1
-        # Read document and build ngrams. Results is List of List of ngrams (each inner List is all ngrams of sentence)
-        doc = ' '.join(doc.readlines())
-        ngrams = buildGramsUpToN(doc, 3)
+def buildGraph(doc, co_occurence_window=2):
+    print('started graph')
 
-        print('Ngrams', ngrams)
+    # Step 1
+    # Read document and build ngrams. Results is List of List of ngrams (each inner List is all ngrams of sentence)
+    ngrams = buildGramsUpToN(doc, 3)
+    print('Ngrams', ngrams)
 
-        # Step 2
-        # Build Graph and add all ngrams
-        # from_iterable transforms [ [ng1, ng2], [ng3, ng4], ...] to [ ng1, ng2, ng3, ng4 ]
-        # OrderedDict instead of set() for determinisic behaviour (every execution results in the same order in nodes)
-        # deletes duplicates
-        g = networkx.Graph()
+    # Step 2
+    # Build Graph and add all ngrams
+    # from_iterable transforms [ [ng1, ng2], [ng3, ng4], ...] to [ ng1, ng2, ng3, ng4 ]
+    # OrderedDict instead of set() for determinisic behaviour (every execution results in the same order in nodes)
+    # deletes duplicates
+    g = networkx.Graph()
 
-        g.add_nodes_from(list(OrderedDict.fromkeys((itertools.chain.from_iterable(ngrams)))))
+    g.add_nodes_from(list(OrderedDict.fromkeys((itertools.chain.from_iterable(ngrams)))))
 
-        print('Nodes', g.nodes)
+    print('Nodes', g.nodes)
 
-        # Step 3
-        # Add edges
-        # for each phrase (ngrams[i] is a list of words in phrase 'i') get all combinations of all words as edges
-        [g.add_edges_from(itertools.combinations(ngrams[i], 2)) for i in range(len(ngrams))]
+    # Step 3
+    # Add edges
+    # for each phrase (ngrams[i] is a list of words in phrase 'i') get all combinations of all words as edges
+    [g.add_edges_from(itertools.combinations(ngrams[i], 2)) for i in range(len(ngrams))]
 
-        # print('Edges', g.edges)
+    # print('Edges', g.edges)
 
-        pr = undirectedPR(g, n_iter=1)
+    pr = getKeyphrasesFromGraph(g, n_iter=1)
 
-        print('Final PR', pr)
+    print('Final PR', pr)
 
-        pos = networkx.spring_layout(g)
+    # pos = networkx.spring_layout(g)
+    #
+    # networkx.draw_networkx_nodes(g, pos, node_size=2000)
+    #
+    # networkx.draw_networkx_edges(g, pos, edgelist=g.edges,
+    #                              width=6)
+    #
+    # networkx.draw_networkx_labels(g, pos, font_size=15, font_family='sans-serif')
+    # plt.axis('off')
+    # plt.show()
+    return pr
 
-        networkx.draw_networkx_nodes(g, pos, node_size=2000)
 
-        networkx.draw_networkx_edges(g, pos, edgelist=g.edges,
-                                     width=6)
-
-        networkx.draw_networkx_labels(g, pos, font_size=15, font_family='sans-serif')
-        plt.axis('off')
-        plt.show()
-
-
-def undirectedPR(g: networkx.Graph, n_iter=1, d=0.15):
+def getKeyphrasesFromGraph(g: networkx.Graph, n_iter=1, d=0.15):
     # N is the total number of candidates
+
     N = len(g.nodes)
     pr = pagerank(g)
 
@@ -115,11 +201,42 @@ def undirectedPR(g: networkx.Graph, n_iter=1, d=0.15):
         writer = csv.writer(f)
         for k, v in pr.items():
             writer.writerow([k, v])
-    return OrderedDict(Helper.dictToOrderedList(pr_pi, rev=True)[:5])
+    return list(OrderedDict(Helper.dictToOrderedList(pr, rev=True)).keys())
 
 
 def main():
-    buildGraph('small.txt')
+    test = Helper.getDataFromDir('ake-datasets-master/datasets/500N-KPCrowd/test')
+    # with open('nyt.txt', 'r') as doc:
+    #     doc = ' '.join(doc.readlines())
+
+    # single_threaded(test)
+    multi_threaded(test)
+
+def multi_threaded(test):
+    with ProcessPoolExecutor(max_workers=3) as executor:
+        fts = {}
+        kfs = {}
+        for file in test:
+            fts.update({executor.submit(buildGraph, test[file].lower()): file})
+        print('shit')
+        for future in as_completed(fts):
+            file = fts[future]
+            kfs.update({file: future.result()})
+
+def single_threaded(test):
+    kfs = {}
+    for file in test:
+        kf = buildGraph(test[file].lower())
+        kfs.update({file: kf})
+
+    meanAPre = Helper.results(kfs, 'ake-datasets-master/datasets/500N-KPCrowd/references/test.reader.stem.json')
+    print(f'Mean Avg Pre for {len(kfs.keys())} documents: ', meanAPre)
 
 
-main()
+if __name__ == '__main__':
+    # single threaded => 142.234375
+    import time
+
+    start = time.process_time()
+    main()
+    print(time.process_time() - start)
