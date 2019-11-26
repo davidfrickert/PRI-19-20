@@ -8,6 +8,7 @@ from collections import OrderedDict
 from concurrent.futures import as_completed
 from concurrent.futures.process import ProcessPoolExecutor
 from concurrent.futures.thread import ThreadPoolExecutor
+from psutil import cpu_count
 from os.path import splitext
 from platform import system
 from statistics import mean
@@ -17,7 +18,7 @@ import networkx
 import nltk
 from networkx import pagerank
 from nltk.corpus import stopwords
-from sklearn.metrics import average_precision_score
+from sklearn.metrics import average_precision_score, precision_score, recall_score, f1_score
 
 stop_words = set(stopwords.words('english'))
 
@@ -88,6 +89,10 @@ class Helper:
     @staticmethod
     def results(pr, reference, nvals=50):
         avg_prec = {}
+        prec = {}
+        re = {}
+        f1 = {}
+
         with open(reference) as f:
             reference_results = json.load(f)
             for doc_name in pr.keys():
@@ -101,8 +106,16 @@ class Helper:
                     while len(y_score) < len(y_true):
                         y_score.append(0)
                 avg_prec.update({doc_name: average_precision_score(y_true, y_score)})
+                prec.update({doc_name: precision_score(y_true, y_score)})
+                re.update({doc_name: recall_score(y_true, y_score)})
+                f1.update({doc_name: f1_score(y_true, y_score)})
+
         meanAPre = mean(avg_prec.values())
-        return meanAPre
+        meanPrec = mean(prec.values())
+        meanRe = mean(re.values())
+        meanF1 = mean(f1.values())
+
+        return meanAPre, meanPrec, meanRe, meanF1
 
 
 def buildGramsUpToN(doc, n):
@@ -217,7 +230,7 @@ def main():
 
 
 def multi_process(test):
-    with ProcessPoolExecutor(max_workers=4) as executor:
+    with ProcessPoolExecutor(max_workers=cpu_count(logical=False)) as executor:
         fts = {}
         kfs = {}
         for file in test:
@@ -226,9 +239,11 @@ def multi_process(test):
         for future in as_completed(fts):
             file = fts[future]
             kfs.update({file: future.result()})
-    meanAPre = Helper.results(kfs, 'ake-datasets-master/datasets/500N-KPCrowd/references/test.reader.stem.json')
+    meanAPre, meanPre, meanRe, meanF1 = Helper.results(kfs, 'ake-datasets-master/datasets/500N-KPCrowd/references/test.reader.stem.json')
     print(f'Mean Avg Pre for {len(kfs.keys())} documents: ', meanAPre)
-
+    print(f'Mean Precision for {len(kfs.keys())} documents: ', meanPre)
+    print(f'Mean Recall for {len(kfs.keys())} documents: ', meanRe)
+    print(f'Mean F1 for {len(kfs.keys())} documents: ', meanF1)
 
 def single_process(test):
     kfs = {}
@@ -236,8 +251,12 @@ def single_process(test):
         kf = buildGraph(test[file].lower())
         kfs.update({file: kf})
 
-    meanAPre = Helper.results(kfs, 'ake-datasets-master/datasets/500N-KPCrowd/references/test.reader.stem.json')
+    meanAPre, meanPre, meanRe, meanF1= Helper.results(kfs, 'ake-datasets-master/datasets/500N-KPCrowd/references/test.reader.stem.json')
     print(f'Mean Avg Pre for {len(kfs.keys())} documents: ', meanAPre)
+    print(f'Mean Precision for {len(kfs.keys())} documents: ', meanPre)
+    print(f'Mean Recall for {len(kfs.keys())} documents: ', meanRe)
+    print(f'Mean F1 for {len(kfs.keys())} documents: ', meanF1)
+
 
 
 if __name__ == '__main__':
