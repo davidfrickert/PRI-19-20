@@ -212,8 +212,9 @@ def main():
     # single_threaded(test)
     multi_threaded(test)
 
+
 def multi_threaded(test):
-    with ProcessPoolExecutor(max_workers=3) as executor:
+    with ProcessPoolExecutor(max_workers=4) as executor:
         fts = {}
         kfs = {}
         for file in test:
@@ -222,6 +223,9 @@ def multi_threaded(test):
         for future in as_completed(fts):
             file = fts[future]
             kfs.update({file: future.result()})
+    meanAPre = Helper.results(kfs, 'ake-datasets-master/datasets/500N-KPCrowd/references/test.reader.stem.json')
+    print(f'Mean Avg Pre for {len(kfs.keys())} documents: ', meanAPre)
+
 
 def single_threaded(test):
     kfs = {}
@@ -237,6 +241,6 @@ if __name__ == '__main__':
     # single threaded => 142.234375
     import time
 
-    start = time.process_time()
+    start = time.time()
     main()
-    print(time.process_time() - start)
+    print(time.time() - start)
