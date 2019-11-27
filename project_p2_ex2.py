@@ -16,10 +16,6 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 
 from project_p2_ex1 import Helper
 
-vec = None
-X = None
-terms = None
-scoreArr = None
 stop_words = set(stopwords.words('english'))
 
 
@@ -81,12 +77,10 @@ def buildGraphNew(doc, collection: list):
 
 
 # encontra o termo e retorna o seu score idf
-def prior(index, p):
-    global vec, X, terms, scoreArr
+def prior(doc_index, p, tfidf):
 
-    for i, term in enumerate(terms):
-        if term == p:
-            return scoreArr[index][i]
+    if p in tfidf['terms']:
+        return tfidf['scoreArr'][doc_index][tfidf['terms'].index(p)]
 
     return 0
 
@@ -134,18 +128,18 @@ def co_ocurrence(edges, collection):
     return co_oc
 
 
-def getKeyphrases(doc: str, collection: list):
+def getKeyphrases(doc: str, collection: list, tfidf:dict):
 
     doc_i = collection.index(doc)
     print(f'started graph for doc nº {doc_i}')
     g = buildGraphNew(doc, collection)
     # change n_iter, 1 for now for testing purposes
-    kf = getKeyphrasesFromGraph(g, doc, doc_i, n_iter=1)
+    kf = getKeyphrasesFromGraph(g, doc, doc_i, tfidf, n_iter=1)
     print(f'finished graph for doc nº {doc_i}')
     return kf
 
 
-def getKeyphrasesFromGraph(g: networkx.Graph, doc: str, doc_i: int, n_iter=1, d=0.15):
+def getKeyphrasesFromGraph(g: networkx.Graph, doc: str, doc_i: int, tfidf:dict, n_iter=1, d=0.15):
     # N is the total number of candidates
     N = len(g.nodes())
     pr = pagerank(g)
@@ -177,13 +171,13 @@ def getKeyphrasesFromGraph(g: networkx.Graph, doc: str, doc_i: int, n_iter=1, d=
                 rst_array.append(rst)
             rst = sum(rst_array)
 
-            # div = sum([prior(doc_i, w) for w in pi_links])
+            #div = sum([prior(doc_i, w, tfidf) for w in pi_links])
             div = sum([priorCandLocation(w, doc) for w in pi_links])
 
             if div == 0:
                 div = 1
 
-            # pr_pi[pi] = d * (prior(doc_i, pi) / div) + (1 - d) * rst
+            #pr_pi[pi] = d * (prior(doc_i, pi, tfidf) / div) + (1 - d) * rst
             pr_pi[pi] = d * (priorCandLocation(pi, doc) / div) + (1 - d) * rst
             # pr_pi[cand] = d / N + (1 - d) * sum_pr_pj
 
@@ -207,10 +201,10 @@ def getKeyphrasesFromGraph(g: networkx.Graph, doc: str, doc_i: int, n_iter=1, d=
     return list(OrderedDict(Helper.dictToOrderedList(pr, rev=True)).keys())
 
 
-def single_process(ds):
+def single_process(ds, tfidf):
     kfs = {}
     for file in ds:
-        d_pr = getKeyphrases(ds[file].lower(), list(map(lambda doc: doc.lower(), ds.values())))
+        d_pr = getKeyphrases(ds[file].lower(), list(map(lambda doc: doc.lower(), ds.values())), tfidf)
         kfs.update({file: d_pr})
 
     meanAPre, meanPre, meanRe, meanF1 = Helper.results(kfs, 'ake-datasets-master/datasets/500N-KPCrowd/references'
@@ -221,13 +215,14 @@ def single_process(ds):
     print(f'Mean F1 for {len(kfs.keys())} documents: ', meanF1)
 
 
-def multi_process(ds):
+def multi_process(ds, terms):
+    #cpu_count(logical=Helper.logical())
     with ProcessPoolExecutor(max_workers=cpu_count(logical=Helper.logical())) as executor:
         fts = {}
         kfs = {}
         for file in ds:
             fts.update({executor.submit(getKeyphrases, ds[file].lower(),
-                                        list(map(lambda doc: doc.lower(), ds.values()))): file})
+                                        list(map(lambda doc: doc.lower(), ds.values())), terms): file})
         for future in as_completed(fts):
             file = fts[future]
             kfs.update({file: future.result()})
@@ -241,7 +236,6 @@ def multi_process(ds):
 
 
 def main():
-    global X, vec, terms, scoreArr
 
     test = Helper.getDataFromDir('ake-datasets-master/datasets/500N-KPCrowd/test')
 
@@ -249,13 +243,13 @@ def main():
     X = vec.fit_transform(test.values())
     terms = vec.get_feature_names()
     scoreArr = X.toarray()
-
+    tfidf = {'terms': terms, 'scoreArr': scoreArr}
     # if windows and not do logical (checks v >= 3.8.0)
-    if system() == 'Windows' and not Helper.logical():
-        single_process(test)
+    if system() == 'Windows' and not Helper.logical():#True:#
+        single_process(test, tfidf)
     # if linux/mac or windows with v >= 3.8.0
     else:
-        multi_process(test)
+        multi_process(test, tfidf)
 
 
 if __name__ == '__main__':
