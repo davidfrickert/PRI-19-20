@@ -204,7 +204,7 @@ def getKeyphrasesFromGraph(g: networkx.Graph, doc: str, doc_i: int, n_iter=1, d=
         writer = csv.writer(f)
         for k, v in pr.items():
             writer.writerow([k, v])
-    return list(OrderedDict(Helper.dictToOrderedList(pr_pi, rev=True)).keys())
+    return list(OrderedDict(Helper.dictToOrderedList(pr, rev=True)).keys())
 
 
 def single_process(ds):
@@ -222,7 +222,7 @@ def single_process(ds):
 
 
 def multi_process(ds):
-    with ProcessPoolExecutor(max_workers=cpu_count(logical=False)) as executor:
+    with ProcessPoolExecutor(max_workers=cpu_count(logical=Helper.logical())) as executor:
         fts = {}
         kfs = {}
         for file in ds:
@@ -250,9 +250,10 @@ def main():
     terms = vec.get_feature_names()
     scoreArr = X.toarray()
 
-    # if windows do single process because multiprocess not working
-    if system() == 'Windows':
+    # if windows and not do logical (checks v >= 3.8.0)
+    if system() == 'Windows' and not Helper.logical():
         single_process(test)
+    # if linux/mac or windows with v >= 3.8.0
     else:
         multi_process(test)
 

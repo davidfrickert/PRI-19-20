@@ -8,19 +8,22 @@ from collections import OrderedDict
 from concurrent.futures import as_completed
 from concurrent.futures.process import ProcessPoolExecutor
 from concurrent.futures.thread import ThreadPoolExecutor
-from psutil import cpu_count
-from os.path import splitext
-from platform import system
-from statistics import mean
-from xml.dom.minidom import parse
+from sys import version_info
 
 import networkx
 import nltk
+from psutil import cpu_count
+from os.path import splitext
+from platform import system, python_version
+from statistics import mean
+from xml.dom.minidom import parse
+
 from networkx import pagerank
 from nltk.corpus import stopwords
 from sklearn.metrics import average_precision_score, precision_score, recall_score, f1_score
 
 stop_words = set(stopwords.words('english'))
+
 
 class Helper:
     @staticmethod
@@ -117,6 +120,9 @@ class Helper:
 
         return meanAPre, meanPrec, meanRe, meanF1
 
+    @staticmethod
+    def logical():
+        return version_info >= (3, 8, 0)
 
 def buildGramsUpToN(doc, n):
     ngrams = []
@@ -146,7 +152,7 @@ def buildGramsUpToN(doc, n):
     return ngrams
 
 
-def buildGraph(doc, co_occurence_window=2):
+def buildGraph(doc):
     print('started graph')
 
     # Step 1
@@ -223,27 +229,28 @@ def main():
     #     doc = ' '.join(doc.readlines())
 
     # if windows do single process because multiprocess not working
-    if system() == 'Windows':
+    if system() == 'Windows' and not Helper.logical():
         single_process(test)
     else:
         multi_process(test)
 
 
 def multi_process(test):
-    with ProcessPoolExecutor(max_workers=cpu_count(logical=False)) as executor:
+    with ProcessPoolExecutor(max_workers=cpu_count(logical=Helper.logical())) as executor:
         fts = {}
         kfs = {}
         for file in test:
             fts.update({executor.submit(buildGraph, test[file].lower()): file})
-        print('shit')
         for future in as_completed(fts):
             file = fts[future]
             kfs.update({file: future.result()})
-    meanAPre, meanPre, meanRe, meanF1 = Helper.results(kfs, 'ake-datasets-master/datasets/500N-KPCrowd/references/test.reader.stem.json')
+    meanAPre, meanPre, meanRe, meanF1 = Helper.results(kfs,
+                                                       'ake-datasets-master/datasets/500N-KPCrowd/references/test.reader.stem.json')
     print(f'Mean Avg Pre for {len(kfs.keys())} documents: ', meanAPre)
     print(f'Mean Precision for {len(kfs.keys())} documents: ', meanPre)
     print(f'Mean Recall for {len(kfs.keys())} documents: ', meanRe)
     print(f'Mean F1 for {len(kfs.keys())} documents: ', meanF1)
+
 
 def single_process(test):
     kfs = {}
@@ -251,12 +258,13 @@ def single_process(test):
         kf = buildGraph(test[file].lower())
         kfs.update({file: kf})
 
-    meanAPre, meanPre, meanRe, meanF1= Helper.results(kfs, 'ake-datasets-master/datasets/500N-KPCrowd/references/test.reader.stem.json')
+    meanAPre, meanPre, meanRe, meanF1 = Helper.results(kfs,
+                                                       'ake-datasets-master/datasets/500N-KPCrowd/references/test'
+                                                       '.reader.stem.json')
     print(f'Mean Avg Pre for {len(kfs.keys())} documents: ', meanAPre)
     print(f'Mean Precision for {len(kfs.keys())} documents: ', meanPre)
     print(f'Mean Recall for {len(kfs.keys())} documents: ', meanRe)
     print(f'Mean F1 for {len(kfs.keys())} documents: ', meanF1)
-
 
 
 if __name__ == '__main__':
