@@ -226,7 +226,7 @@ def multi_process(ds):
         fts = {}
         kfs = {}
         for file in ds:
-            fts.update({executor.submit(buildGraphNew, ds[file].lower(),
+            fts.update({executor.submit(getKeyphrases, ds[file].lower(),
                                         list(map(lambda doc: doc.lower(), ds.values()))): file})
         for future in as_completed(fts):
             file = fts[future]
