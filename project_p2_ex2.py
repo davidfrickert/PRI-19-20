@@ -1,16 +1,18 @@
 import csv
 import itertools
-import json
 import string
 from collections import OrderedDict
-from statistics import mean
+from concurrent.futures import as_completed
+from concurrent.futures.process import ProcessPoolExecutor
+from platform import system
+from time import time
 
 import networkx
 import nltk
 from networkx import pagerank
 from nltk.corpus import stopwords
+from psutil import cpu_count
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics import average_precision_score
 
 from project_p2_ex1 import Helper
 
@@ -18,12 +20,12 @@ vec = None
 X = None
 terms = None
 scoreArr = None
+stop_words = set(stopwords.words('english'))
 
 
 def buildGramsUpToN(doc, n):
     ngrams = []
     doc = doc.lower()
-    invalid = set(stopwords.words('english'))
 
     s = [sentence.translate(str.maketrans(string.punctuation, ' ' * len(string.punctuation))) for sentence in
          nltk.sent_tokenize(doc)]
@@ -34,7 +36,7 @@ def buildGramsUpToN(doc, n):
     for sentence in sents:
         tormv = []
         for word in sentence:
-            if word in invalid:
+            if word in stop_words:
                 tormv.append(word)
         [sentence.remove(w) for w in tormv]
 
@@ -52,7 +54,7 @@ def buildGramsUpToN(doc, n):
 def buildGraphNew(doc, collection: list):
     ngrams = buildGramsUpToN(doc, 3)
     doc_i = collection.index(doc)
-    print(f'started graph for doc nº {doc_i}')
+
     # print('Ngrams', ngrams)
 
     # Step 2
@@ -75,28 +77,15 @@ def buildGraphNew(doc, collection: list):
 
     # print('Edges', g.edges)
 
-    pr = undirectedPR(g, doc, doc_i, n_iter=1)
-
-    # print('Final PR', pr)
-
-    return pr
+    return g
 
 
 # encontra o termo e retorna o seu score idf
 def prior(index, p):
     global vec, X, terms, scoreArr
-    # stopW = set(stopwords.words('english'))
-
-    # return merge(dataset, terms, scoreArr)
-
-    # print(terms)
-    # print(scoreArr)
 
     for i, term in enumerate(terms):
         if term == p:
-            # print(term)
-            # print(p)
-            # print(scoreArr[0][i])
             return scoreArr[index][i]
 
     return 0
@@ -119,7 +108,6 @@ def addWeights(edges, collection):
 
 
 def co_ocurrence(edges, collection):
-    stop = set(stopwords.words('english'))
     co_oc = []
     for doc in collection:
         sentences = nltk.sent_tokenize(doc)
@@ -127,7 +115,7 @@ def co_ocurrence(edges, collection):
                      for sentence in sentences]
         new_sents = []
         for sent in sentences:
-            new_sents.append(' '.join([word for word in nltk.word_tokenize(sent) if word not in stop]))
+            new_sents.append(' '.join([word for word in nltk.word_tokenize(sent) if word not in stop_words]))
         sentences = new_sents
 
         for sent in sentences:
@@ -146,7 +134,18 @@ def co_ocurrence(edges, collection):
     return co_oc
 
 
-def undirectedPR(g: networkx.Graph, doc: str, doc_i: int, n_iter=1, d=0.15):
+def getKeyphrases(doc: str, collection: list):
+
+    doc_i = collection.index(doc)
+    print(f'started graph for doc nº {doc_i}')
+    g = buildGraphNew(doc, collection)
+    # change n_iter, 1 for now for testing purposes
+    kf = getKeyphrasesFromGraph(g, doc, doc_i, n_iter=1)
+    print(f'finished graph for doc nº {doc_i}')
+    return kf
+
+
+def getKeyphrasesFromGraph(g: networkx.Graph, doc: str, doc_i: int, n_iter=1, d=0.15):
     # N is the total number of candidates
     N = len(g.nodes())
     pr = pagerank(g)
@@ -208,6 +207,39 @@ def undirectedPR(g: networkx.Graph, doc: str, doc_i: int, n_iter=1, d=0.15):
     return list(OrderedDict(Helper.dictToOrderedList(pr_pi, rev=True)).keys())
 
 
+def single_process(ds):
+    kfs = {}
+    for file in ds:
+        d_pr = getKeyphrases(ds[file].lower(), list(map(lambda doc: doc.lower(), ds.values())))
+        kfs.update({file: d_pr})
+
+    meanAPre, meanPre, meanRe, meanF1 = Helper.results(kfs, 'ake-datasets-master/datasets/500N-KPCrowd/references'
+                                                            '/test.reader.stem.json')
+    print(f'Mean Avg Pre for {len(kfs.keys())} documents: ', meanAPre)
+    print(f'Mean Precision for {len(kfs.keys())} documents: ', meanPre)
+    print(f'Mean Recall for {len(kfs.keys())} documents: ', meanRe)
+    print(f'Mean F1 for {len(kfs.keys())} documents: ', meanF1)
+
+
+def multi_process(ds):
+    with ProcessPoolExecutor(max_workers=cpu_count(logical=False)) as executor:
+        fts = {}
+        kfs = {}
+        for file in ds:
+            fts.update({executor.submit(buildGraphNew, ds[file].lower(),
+                                        list(map(lambda doc: doc.lower(), ds.values()))): file})
+        for future in as_completed(fts):
+            file = fts[future]
+            kfs.update({file: future.result()})
+    meanAPre, meanPre, meanRe, meanF1 = Helper.results(kfs,
+                                                       'ake-datasets-master/datasets/500N-KPCrowd/references/test'
+                                                       '.reader.stem.json')
+    print(f'Mean Avg Pre for {len(kfs.keys())} documents: ', meanAPre)
+    print(f'Mean Precision for {len(kfs.keys())} documents: ', meanPre)
+    print(f'Mean Recall for {len(kfs.keys())} documents: ', meanRe)
+    print(f'Mean F1 for {len(kfs.keys())} documents: ', meanF1)
+
+
 def main():
     global X, vec, terms, scoreArr
 
@@ -218,21 +250,14 @@ def main():
     terms = vec.get_feature_names()
     scoreArr = X.toarray()
 
-    pr = {}
-    threads = []
-    # MAX_THREADS = 8
-    # with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
-    for file in test:
-        # future = executor.submit(buildGraphNew, test[file].lower(), list(map(lambda doc: doc.lower(), test.values())))
-        # threads.append(future)
-        d_pr = buildGraphNew(test[file].lower(), list(map(lambda doc: doc.lower(), test.values())))
-        pr.update({file: d_pr})
-        break
-
-    meanAPre = Helper.results(pr, 'ake-datasets-master/datasets/500N-KPCrowd/references/test.reader.stem.json')
-    print(f'Mean Avg Pre for {len(pr.keys())} documents: ', meanAPre)
-    # for file, future in zip(test.keys(), threads):
-    #    pr.update({file: future.result()})
+    # if windows do single process because multiprocess not working
+    if system() == 'Windows':
+        single_process(test)
+    else:
+        multi_process(test)
 
 
-main()
+if __name__ == '__main__':
+    start = time()
+    main()
+    print(time() - start)
