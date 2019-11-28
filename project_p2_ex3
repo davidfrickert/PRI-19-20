@@ -1,145 +1,83 @@
 import itertools
-import sys
-from math import log
-import nltk
-import string
-import numpy
-from sklearn.feature_extraction.text import TfidfVectorizer, _document_frequency
-from project_ex2 import getDataFromDir, calcMetrics, merge, mergeDict
+import networkx
+from networkx import pagerank
+from sklearn.feature_extraction.text import TfidfVectorizer
 
-numpy.set_printoptions(threshold=sys.maxsize)
+from project_ex1 import Helper, getKeyphrasesFromGraph, buildGramsUpToN
+from collections import OrderedDict
 
 
-def findBiggestGram(candidates):
-    max_gram = 0
-    for doc in candidates:
-        for cand in doc:
-            gram = len(cand.split())
-            max_gram = gram if gram > max_gram else max_gram
-    return max_gram
+def calculateParameters(g: networkx.Graph, all_cands, doc, scores):
+    params = []
+    #graphScores = pagerank(g)
+    max_cand_score = max(scores.values())
+
+    for cand in all_cands:
+
+        freq = doc.count(cand)
+
+        if cand not in scores:
+            cand_score = 0.
+        else:
+            cand_score = scores[cand] / max_cand_score
+
+        cand_len = len(cand)
+        cand_term_count = len(cand.split())
+
+        first_match = doc.find(cand) / len(doc)
+        last_match = doc.rfind(cand) / len(doc)
+
+        if first_match == last_match:
+            spread = 0.
+        else:
+            spread = last_match - first_match
+        params.append([cand_score, freq, cand_len, cand_term_count, first_match, last_match, spread, graphScores[cand]])
+    return dict(zip(all_cands, params))
 
 
-def getAllChunks(tagged_sents, grammar=r'KT: {(<JJ>* <NN.*>+ <IN>)? <JJ>* <NN.*>+}'):
-    punct = set(string.punctuation)
-    stop_words = set(nltk.corpus.stopwords.words('english'))
-    chunker = nltk.chunk.regexp.RegexpParser(grammar)
+def getRecipRankFusionScore(words):
+    RRFScore = {}
+    for name, scores in words.items():
+        wordScore = []
+        for param in scores:
+            wordScore.append(1 / (50 + param))
+        RRFScore.update({name: sum(wordScore)})
 
-    all_chunks = [nltk.chunk.tree2conlltags(chunker.parse(tagged_sent))
-                  for tagged_sent in tagged_sents]
-    candidates = set()
-
-    # all_chunks is a list of lists. the inner lists are chunks for each sentence (so we don't have multi-sentence candidates)
-    for sentence in all_chunks:
-        candidates = candidates | set([' '.join(word for word, pos, chunk in group).lower()
-                                       for key, group in itertools.groupby(sentence, lambda tpl: tpl[2] != 'O') if key])
-
-    return [cand for cand in candidates
-            if cand not in stop_words and not all(char in punct for char in cand)]
+    return Helper.dictToOrderedList(RRFScore, rev=True)[:5]
 
 
-def getAllCandidates(dataset):
-    return [getAllChunks(text) for text in dataset.values()]
+def buildGraph(doc):
+    nGrams = buildGramsUpToN(doc, 3)
 
+    g = networkx.Graph()
 
-def listOfTaggedToString(dataset):
-    documents = []
+    g.add_nodes_from(list(OrderedDict.fromkeys((itertools.chain.from_iterable(nGrams)))))
 
-    for d in dataset.values():
-        arr = []
-        for p in d:
-            arr.append([k[0].lower() for k in p])
-        documents.append(' '.join(itertools.chain.from_iterable(arr)))
-    return documents
+    [g.add_edges_from(itertools.combinations(nGrams[i], 2)) for i in range(len(nGrams))]
 
-
-def listOfTaggedToListOfWords(dataset):
-    documents = []
-    punct = set(string.punctuation)
-    for d in dataset.values():
-        doc_i = []
-        for ph in d:
-            for w_tag in ph:
-                word = w_tag[0].lower()
-                if not all(char in punct for char in word):
-                    doc_i.append(word)
-        documents.append(doc_i)
-    return documents
-
-
-def getTFIDFScore(dataset, mergetype='list'):
-    # extract candidates from each text in texts, either chunks or words
-
-    ds = getAllCandidates(dataset)
-    words = listOfTaggedToListOfWords(dataset)
-
-    vec = TfidfVectorizer(tokenizer=lambda i: i, lowercase=False)
-
-    vec.fit(ds)
-
-    vec.ngram_range = (1, findBiggestGram(ds))
-
-    X = vec.transform(words).toarray()
-
-    terms = vec.get_feature_names()
-
-    if mergetype == 'dict':
-        return mergeDict(dataset, terms, X)
-    else:
-        return merge(dataset, terms, X)
-
-
-def getBM25Score(dataset, k1=1.2, b=0.75, mergetype='list'):
-    ds = getAllCandidates(dataset)
-    words = listOfTaggedToListOfWords(dataset)
-
-    vec_tf = TfidfVectorizer(tokenizer=lambda e: e, lowercase=False, use_idf=False)
-
-    vec_tf.fit(ds)
-
-    vec_tf.ngram_range = (1, findBiggestGram(ds))
-    X = vec_tf.transform(words)
-
-    tf_arr = X.toarray()
-    terms = vec_tf.get_feature_names()
-
-    N = len(dataset)
-    avgDL = getAvgDL(ds)
-    DF_all = _document_frequency(X)  # .sum()
-    score = []
-
-    for i, doc in enumerate(dataset.values()):
-        temp = []
-        dl = len(list(itertools.chain.from_iterable(doc)))
-
-        for j in range(len(terms)):
-            DF = DF_all[j]
-            tf = tf_arr[i][j]
-
-            bm25_idf = log((N - DF + 0.5) / (DF + 0.5), 10)
-            bm25_tf = (tf * (k1 + 1)) / (tf + k1 * (1 - b + (b * (dl / avgDL))))
-
-            bm25 = bm25_tf * (bm25_idf + 1.)
-            temp.append(bm25 * (len(terms[j]) / len(terms[j].split())))
-        score.append(temp)
-
-    if mergetype == 'dict':
-        return mergeDict(dataset, terms, score)
-    else:
-        return merge(dataset, terms, score)
-
-
-def getAvgDL(all_d):
-    return numpy.average([len(d) for d in all_d])
+    return g
 
 
 def main():
-    train = getDataFromDir('ake-datasets-master/datasets/500N-KPCrowd/train', mode='list')
-    results = getBM25Score(train)
-    results_ = getTFIDFScore(train)
+    test = Helper.getDataFromDir(r'C:\Program Files (x86)\PycharmProjects\Projeto_PRI_Parte2\500N-KPCrowd/test')
 
-    calcMetrics(results, 'ake-datasets-master/datasets/500N-KPCrowd/references/train.reader.stem.json')
-    calcMetrics(results_, 'ake-datasets-master/datasets/500N-KPCrowd/references/train.reader.stem.json')
+    vec = TfidfVectorizer(stop_words=None, ngram_range=(1, 3))
+    X = vec.fit_transform(test.values())
+    terms = vec.get_feature_names()
+    scoreArr = X.toarray()
+    tfidf = {'terms': terms, 'scoreArr': scoreArr}
+    rrfScores = {}
+    for i, doc_name in enumerate(test.keys()):
+        g = buildGraph(test[doc_name])
+        params = calculateParameters(g, getKeyphrasesFromGraph(g, n_iter=1), test[doc_name], dict(zip(terms, scoreArr[i])))
+        rrfScores[doc_name] = getRecipRankFusionScore(params)
+
+    print(rrfScores)
 
 
 if __name__ == '__main__':
+    import time
+
+    start = time.time()
     main()
+    print(time.time() - start)
