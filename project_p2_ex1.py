@@ -7,19 +7,17 @@ import string
 from collections import OrderedDict
 from concurrent.futures import as_completed
 from concurrent.futures.process import ProcessPoolExecutor
-from concurrent.futures.thread import ThreadPoolExecutor
+from os.path import splitext
+from platform import system
+from statistics import mean
 from sys import version_info
+from xml.dom.minidom import parse
 
 import networkx
 import nltk
-from psutil import cpu_count
-from os.path import splitext
-from platform import system, python_version
-from statistics import mean
-from xml.dom.minidom import parse
-
 from networkx import pagerank
 from nltk.corpus import stopwords
+from psutil import cpu_count
 from sklearn.metrics import average_precision_score, precision_score, recall_score, f1_score
 
 stop_words = set(stopwords.words('english'))
@@ -32,7 +30,7 @@ class Helper:
 
     @staticmethod
     def getMaxDiff(pr0, pr1):
-        return max(map(float.__sub__, pr1, pr0))
+        return max(map(abs, map(float.__sub__, pr1, pr0)))
 
     @staticmethod
     def stemKF(kf):
@@ -90,7 +88,7 @@ class Helper:
         return result
 
     @staticmethod
-    def results(pr, reference, nvals=50):
+    def results(res, reference):
         avg_prec = {}
         prec = {}
         re = {}
@@ -98,16 +96,16 @@ class Helper:
 
         with open(reference) as f:
             reference_results = json.load(f)
-            for doc_name in pr.keys():
+            for doc_name in res.keys():
+                pr, g = res[doc_name]
+                nvals = int(0.1 * len(g.nodes))
                 doc_results = set(itertools.chain.from_iterable(reference_results[doc_name]))
-                kf_results = set([Helper.stemKF(kf) for kf in pr[doc_name][:nvals]])
+                print(nvals)
+                kf_results = set([Helper.stemKF(kf) for kf in pr[:nvals]])
+
                 y_true = [1 if kf in doc_results else 0 for kf in (kf_results.union(doc_results))]
                 y_score = [1 if kf in kf_results else 0 for kf in (kf_results.union(doc_results))]
-                if len(y_score) > len(y_true):
-                    y_score = y_score[:y_true]
-                else:
-                    while len(y_score) < len(y_true):
-                        y_score.append(0)
+
                 avg_prec.update({doc_name: average_precision_score(y_true, y_score)})
                 prec.update({doc_name: precision_score(y_true, y_score)})
                 re.update({doc_name: recall_score(y_true, y_score)})
@@ -123,6 +121,7 @@ class Helper:
     @staticmethod
     def logical():
         return version_info >= (3, 8, 0)
+
 
 def buildGramsUpToN(doc, n):
     ngrams = []
@@ -158,7 +157,7 @@ def buildGraph(doc):
     # Step 1
     # Read document and build ngrams. Results is List of List of ngrams (each inner List is all ngrams of sentence)
     ngrams = buildGramsUpToN(doc, 3)
-    print('Ngrams', ngrams)
+    # print('Ngrams', ngrams)
 
     # Step 2
     # Build Graph and add all ngrams
@@ -169,7 +168,7 @@ def buildGraph(doc):
 
     g.add_nodes_from(list(OrderedDict.fromkeys((itertools.chain.from_iterable(ngrams)))))
 
-    print('Nodes', g.nodes)
+    # print('Nodes', g.nodes)
 
     # Step 3
     # Add edges
@@ -178,7 +177,7 @@ def buildGraph(doc):
 
     # print('Edges', g.edges)
 
-    pr = getKeyphrasesFromGraph(g, n_iter=1)
+    pr = getKeyphrasesFromGraph(g, n_iter=15)
 
     print('Final PR', pr)
 
@@ -192,7 +191,7 @@ def buildGraph(doc):
     # networkx.draw_networkx_labels(g, pos, font_size=15, font_family='sans-serif')
     # plt.axis('off')
     # plt.show()
-    return pr
+    return pr, g
 
 
 def getKeyphrasesFromGraph(g: networkx.Graph, n_iter=1, d=0.15):
@@ -213,9 +212,11 @@ def getKeyphrasesFromGraph(g: networkx.Graph, n_iter=1, d=0.15):
             sum_pr_pj = sum([pr[e[1]] / len(g.edges(e[1])) for e in pi_links])
             pr_pi[cand] = d / N + (1 - d) * sum_pr_pj
 
-        print(Helper.dictToOrderedList(pr_pi, rev=True))
-
+        # print(Helper.dictToOrderedList(pr_pi, rev=True))
+        diff = Helper.getMaxDiff(pr.values(), pr_pi.values())
         pr = pr_pi
+        if diff < 0.01:
+            break
     with open('pr.csv', 'w', newline='') as f:
         writer = csv.writer(f)
         for k, v in pr.items():
