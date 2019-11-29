@@ -48,9 +48,8 @@ def buildGramsUpToN(doc, n):
     return ngrams
 
 
-def buildGraphNew(doc, collection: list, model):
+def buildGraph(doc, model, collection: list = None):
     ngrams = buildGramsUpToN(doc, 3)
-    doc_i = collection.index(doc)
 
     # print('Ngrams', ngrams)
 
@@ -69,7 +68,7 @@ def buildGraphNew(doc, collection: list, model):
     # Add edges
     # for each phrase (ngrams[i] is a list of words in phrase 'i') get all combinations of all words as edges
     edges = list(itertools.chain.from_iterable([itertools.combinations(ngrams[i], 2) for i in range(len(ngrams))]))
-    new_edges = addWeights(edges, collection, model)
+    new_edges = addWeights(edges, model)  # , collection=collection) #uncomment for co-occurence
     g.add_weighted_edges_from(new_edges)
 
     # print('Edges', g.edges)
@@ -78,9 +77,16 @@ def buildGraphNew(doc, collection: list, model):
 
 
 # encontra o termo e retorna o seu score idf
-def prior(doc_index, p, tfidf):
-    if p in tfidf['terms']:
-        return tfidf['scoreArr'][doc_index][tfidf['terms'].index(p)]
+'''
+    @:arg doc_index: index of document to search in TF-IDF Matrix
+    @:arg cand: candidate to search
+    @:arg info: dict that has term list, TF-IDF Matrix and Word2Vec Model
+'''
+
+
+def prior(doc_index, cand, info):
+    if cand in info['terms']:
+        return info['TF-IDF'][doc_index][info['terms'].index(cand)]
 
     return 0
 
@@ -98,7 +104,7 @@ def priorCandLocation(cand: str, doc: str):
         return first_match * len(cand)
 
 
-def addWeights(edges, collection, model):
+def addWeights(edges, model, collection=None):
     # weights = co_ocurrence(edges, collection)
     weights = weightsWMD(edges, model)
     n_edges = [e + (w,) for (e, w) in zip(edges, weights)]
@@ -107,8 +113,7 @@ def addWeights(edges, collection, model):
 
 def weightsWMD(edges, model: KeyedVectors):
     weights = [model.wmdistance(*e) for e in edges]
-    print(min(weights))
-    print(max(weights))
+    weights = [1 - (w / max(weights)) for w in weights]
     return weights
 
 
@@ -139,22 +144,20 @@ def co_ocurrence(edges, collection):
     return co_oc
 
 
-def getKeyphrases(doc: str, collection: list, tfidf: dict):
-    doc_i = collection.index(doc)
+def getKeyphrases(doc: str, info: dict, collection: list = None, doc_i=None):
+    if not doc_i:
+        doc_i = collection.index(doc)
     print(f'started graph for doc nº {doc_i}')
-    g = buildGraphNew(doc, collection, tfidf['model'])
+    g = buildGraph(doc, info['model'], collection=collection)
     # change n_iter, 1 for now for testing purposes
-    pr = computeWeightedPR(g, doc, doc_i, tfidf, n_iter=15)
+    pr = computeWeightedPR(g, doc_i, info, n_iter=15)
     kf = list(OrderedDict(Helper.dictToOrderedList(pr, rev=True)).keys())
     print(f'finished graph for doc nº {doc_i}')
     return kf, g
 
 
-def computeWeightedPR(g: networkx.Graph, doc: str, doc_i: int, tfidf: dict, n_iter=1, d=0.15):
-    # N is the total number of candidates
-    N = len(g.nodes())
+def computeWeightedPR(g: networkx.Graph, doc_i: int, info: dict, n_iter=1, d=0.15):
     pr = pagerank(g)
-
     diff_list = []
 
     # cand := pi, calculate PR(pi) for all nodes
@@ -162,11 +165,6 @@ def computeWeightedPR(g: networkx.Graph, doc: str, doc_i: int, tfidf: dict, n_it
         pr_pi = {}
         for pi in g.nodes():
             pi_links = list(map(lambda e: e[1], g.edges(pi)))
-
-            # e = (pi, pj)
-            # pj = e[1]
-            # PR(pj) = pr[pj] = pr[e[1]]
-            # Links(pj) = g.edges(pj) = g.edges(e[1])
 
             # sum_pr_pj = sum([pr[e[1]] / len(g.edges(e[1])) for e in pi_links])
             # todos os candidatos ou so os que estao ligados ao cand agora
@@ -182,13 +180,13 @@ def computeWeightedPR(g: networkx.Graph, doc: str, doc_i: int, tfidf: dict, n_it
                 rst_array.append(rst)
             rst = sum(rst_array)
 
-            div = sum([prior(doc_i, w, tfidf) for w in pi_links])
+            div = sum([prior(doc_i, w, info) for w in pi_links])
             # div = sum([priorCandLocation(w, doc) for w in pi_links])
 
             if div == 0:
                 div = 1
 
-            pr_pi[pi] = d * (prior(doc_i, pi, tfidf) / div) + (1 - d) * rst
+            pr_pi[pi] = d * (prior(doc_i, pi, info) / div) + (1 - d) * rst
             # pr_pi[pi] = d * (priorCandLocation(pi, doc) / div) + (1 - d) * rst
             # pr_pi[cand] = d / N + (1 - d) * sum_pr_pj
 
@@ -212,10 +210,27 @@ def computeWeightedPR(g: networkx.Graph, doc: str, doc_i: int, tfidf: dict, n_it
     return pr
 
 
-def single_process(ds, tfidf):
+def getInfo():
+    model = KeyedVectors.load_word2vec_format('wiki-news-300d-1M.vec')
+    #model.save('model.vec')
+    #model = KeyedVectors.load('model.vec', mmap='r')
+    terms, tf_idf = calculateTF_IDFAndNormalize('ake-datasets-master/datasets/500N-KPCrowd/test', 'ake-datasets-master/datasets/500N-KPCrowd/train')
+    info = {'terms': terms, 'TF-IDF': tf_idf, 'model': model}
+    return info
+
+
+'''
+    ds: dict[doc_name, doc]
+'''
+
+
+def single_process(ds):
     kfs = {}
-    for file in ds:
-        d_pr = getKeyphrases(ds[file].lower(), list(map(lambda doc: doc.lower(), ds.values())), tfidf)
+    info = getInfo()
+    # lower case our collection as list
+    collection = list(map(lambda doc: doc.lower(), ds.values()))
+    for i, file in enumerate(ds):
+        d_pr = getKeyphrases(ds[file].lower(), info, doc_i=i, collection=collection)
         kfs.update({file: d_pr})
 
     meanAPre, meanPre, meanRe, meanF1 = Helper.results(kfs, 'ake-datasets-master/datasets/500N-KPCrowd/references'
@@ -226,14 +241,21 @@ def single_process(ds, tfidf):
     print(f'Mean F1 for {len(kfs.keys())} documents: ', meanF1)
 
 
-def multi_process(ds, terms):
+'''
+    ds: dict[doc_name, doc]
+'''
+
+
+def multi_process(ds):
+    info = getInfo()
     # cpu_count(logical=Helper.logical())
     with ProcessPoolExecutor(max_workers=cpu_count(logical=Helper.logical())) as executor:
         fts = {}
         kfs = {}
-        for file in ds:
-            fts.update({executor.submit(getKeyphrases, ds[file].lower(),
-                                        list(map(lambda doc: doc.lower(), ds.values())), terms): file})
+        collection = list(map(lambda doc: doc.lower(), ds.values()))
+
+        for i, file in enumerate(ds):
+            fts.update({executor.submit(getKeyphrases, ds[file].lower(), info, doc_i=i, collection=collection): file})
         for future in as_completed(fts):
             file = fts[future]
             kfs.update({file: future.result()})
@@ -246,23 +268,39 @@ def multi_process(ds, terms):
     print(f'Mean F1 for {len(kfs.keys())} documents: ', meanF1)
 
 
+def calculateTF_IDFAndNormalize(datasetFileName: str, backgroundCollectionFileName: str):
+    ds = Helper.getDataFromDir(datasetFileName)
+    extra = Helper.getDataFromDir(backgroundCollectionFileName)
+
+    vec = TfidfVectorizer(stop_words=stop_words, ngram_range=(1, 3))
+    vec.fit(extra.values())
+    X = vec.fit_transform(ds.values())
+    terms = vec.get_feature_names()
+    tf_idf = X.toarray()
+
+    new_tf_idf = [[doc[j] * (len(terms[j]) / len(terms[j].split())) for j in range(len(terms))] for doc in tf_idf]
+    max_val = [max(tf_idf[i]) for i in range(len(tf_idf))]
+    max_val = max(max_val)
+    # normalize each row (document) with the respective max value
+    #new_tf_idf = [[doc[j] / max_val[i] for j in range(len(terms))] for i, doc in enumerate(new_tf_idf)]
+    new_tf_idf = [[doc[j] / max_val for j in range(len(terms))] for i, doc in enumerate(new_tf_idf)]
+    return terms, new_tf_idf
+
+
 def main():
     TEST = False
     test = Helper.getDataFromDir('ake-datasets-master/datasets/500N-KPCrowd/test')
     # test = dict(zip(list(test.keys())[:2], list(test.values())[:2]))
-    vec = TfidfVectorizer(stop_words=None, ngram_range=(1, 3))
-    X = vec.fit_transform(test.values())
-    terms = vec.get_feature_names()
-    scoreArr = X.toarray()
-    model = KeyedVectors.load_word2vec_format('wiki-news-300d-1M.vec')
-   #model = None
-    tfidf = {'terms': terms, 'scoreArr': scoreArr, 'model': model}
+
+    # model = KeyedVectors.load_word2vec_format('wiki-news-300d-1M.vec')
+    # model = None
+    # tfidf = {'terms': terms, 'scoreArr': scoreArr, 'model': model}
     # if windows and not do logical (checks v >= 3.8.0)
     if (system() == 'Windows' and not Helper.logical()) or TEST:  # True:#
-        single_process(test, tfidf)
+        single_process(test)
     # if linux/mac or windows with v >= 3.8.0
     else:
-        multi_process(test, tfidf)
+        multi_process(test)
 
 
 if __name__ == '__main__':

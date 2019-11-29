@@ -1,17 +1,19 @@
 import itertools
+from collections import OrderedDict
+from typing import List, Dict, Any
+
 import networkx
-from networkx import pagerank
 from sklearn.feature_extraction.text import TfidfVectorizer
 
-from project_ex1 import Helper, getKeyphrasesFromGraph, buildGramsUpToN
-from collections import OrderedDict
+from project_p2_ex1 import Helper, buildGramsUpToN
+from project_p2_ex2 import buildGraph, getInfo, computeWeightedPR
 
 
-def calculateParameters(g: networkx.Graph, all_cands, doc, scores):
+def calculateParameters(g: networkx.Graph, doc: str, scores: Dict[str, float], pr: Dict[str, float]):
     params = []
-    #graphScores = pagerank(g)
-    max_cand_score = max(scores.values())
 
+    max_cand_score = max(scores.values())
+    all_cands = g.nodes
     for cand in all_cands:
 
         freq = doc.count(cand)
@@ -31,7 +33,7 @@ def calculateParameters(g: networkx.Graph, all_cands, doc, scores):
             spread = 0.
         else:
             spread = last_match - first_match
-        params.append([cand_score, freq, cand_len, cand_term_count, first_match, last_match, spread, graphScores[cand]])
+        params.append([cand_score, freq, cand_len, cand_term_count, first_match, last_match, spread, pr[cand]])
     return dict(zip(all_cands, params))
 
 
@@ -46,33 +48,20 @@ def getRecipRankFusionScore(words):
     return Helper.dictToOrderedList(RRFScore, rev=True)[:5]
 
 
-def buildGraph(doc):
-    nGrams = buildGramsUpToN(doc, 3)
-
-    g = networkx.Graph()
-
-    g.add_nodes_from(list(OrderedDict.fromkeys((itertools.chain.from_iterable(nGrams)))))
-
-    [g.add_edges_from(itertools.combinations(nGrams[i], 2)) for i in range(len(nGrams))]
-
-    return g
-
-
 def main():
-    test = Helper.getDataFromDir(r'C:\Program Files (x86)\PycharmProjects\Projeto_PRI_Parte2\500N-KPCrowd/test')
+    test = Helper.getDataFromDir('ake-datasets-master/datasets/500N-KPCrowd/test')
+    test = dict(zip(list(test.keys())[:1], list(test.values())[:1]))
+    info = getInfo()
 
-    vec = TfidfVectorizer(stop_words=None, ngram_range=(1, 3))
-    X = vec.fit_transform(test.values())
-    terms = vec.get_feature_names()
-    scoreArr = X.toarray()
-    tfidf = {'terms': terms, 'scoreArr': scoreArr}
     rrfScores = {}
+
     for i, doc_name in enumerate(test.keys()):
-        g = buildGraph(test[doc_name])
-        params = calculateParameters(g, getKeyphrasesFromGraph(g, n_iter=1), test[doc_name], dict(zip(terms, scoreArr[i])))
+        g = buildGraph(test[doc_name], info['model'])
+        pr = computeWeightedPR(g, i, info, n_iter=15)
+        params = calculateParameters(g, test[doc_name], dict(zip(info['terms'], info['TF-IDF'][i])), pr)
         rrfScores[doc_name] = getRecipRankFusionScore(params)
 
-    print(rrfScores)
+    print('rrfScores', rrfScores)
 
 
 if __name__ == '__main__':
@@ -80,4 +69,4 @@ if __name__ == '__main__':
 
     start = time.time()
     main()
-    print(time.time() - start)
+    print(f'elapsed - {time.time() - start} seconds')

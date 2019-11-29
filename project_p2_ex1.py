@@ -93,34 +93,76 @@ class Helper:
         prec = {}
         re = {}
         f1 = {}
-
+        avg = {}
         with open(reference) as f:
             reference_results = json.load(f)
             for doc_name in res.keys():
                 pr, g = res[doc_name]
-                nvals = int(0.1 * len(g.nodes))
+                #nvals = int(0.1 * len(g.nodes))
+                nvals = 50
                 doc_results = set(itertools.chain.from_iterable(reference_results[doc_name]))
-                print(nvals)
+                print(nvals - len(doc_results))
+                # print(nvals / len(doc_results))
                 kf_results = set([Helper.stemKF(kf) for kf in pr[:nvals]])
 
                 y_true = [1 if kf in doc_results else 0 for kf in (kf_results.union(doc_results))]
                 y_score = [1 if kf in kf_results else 0 for kf in (kf_results.union(doc_results))]
 
-                avg_prec.update({doc_name: average_precision_score(y_true, y_score)})
+                avg_prec.update({doc_name: Metrics.averagePrecision(list(kf_results), list(doc_results))})
+                # avg_prec.update({doc_name: average_precision_score(y_true, y_score)})
                 prec.update({doc_name: precision_score(y_true, y_score)})
                 re.update({doc_name: recall_score(y_true, y_score)})
                 f1.update({doc_name: f1_score(y_true, y_score)})
+                avg[doc_name] = nvals / len(doc_results)
+
 
         meanAPre = mean(avg_prec.values())
         meanPrec = mean(prec.values())
         meanRe = mean(re.values())
         meanF1 = mean(f1.values())
+        print(mean(avg.values()))
 
         return meanAPre, meanPrec, meanRe, meanF1
 
     @staticmethod
     def logical():
         return version_info >= (3, 8, 0)
+
+
+class Metrics:
+    '''
+    Class for metrics, mainly for calculating average precision
+
+    @:arg predicted: predicted keyphrases by our programs
+        @:type list[str]
+    @:arg true: true keyphrases in the references
+        @:type list[str]
+    '''
+
+    @staticmethod
+    def averagePrecision(predicted, true):
+        return sum(
+            [
+                Metrics.precisionAt(predicted, true, k + 1) * Metrics.isKeyphrase(kf, true)
+                for k, kf in enumerate(predicted)
+            ]
+        ) / len(true)
+
+    @staticmethod
+    def isKeyphrase(item, true):
+        return 1 if item in true else 0
+
+    @staticmethod
+    def precisionAt(predicted, true, k):
+        true_positives = 0
+
+        tmp = predicted[:k]
+
+        for kf in tmp:
+            if kf in true:
+                true_positives += 1
+
+        return float(true_positives) / float(k)
 
 
 def buildGramsUpToN(doc, n):
@@ -176,25 +218,15 @@ def buildGraph(doc):
     [g.add_edges_from(itertools.combinations(ngrams[i], 2)) for i in range(len(ngrams))]
 
     # print('Edges', g.edges)
+    return g
+    # pr = getKeyphrasesFromGraph(g, n_iter=15)
 
-    pr = getKeyphrasesFromGraph(g, n_iter=15)
+    # print('Final PR', pr)
 
-    print('Final PR', pr)
-
-    # pos = networkx.spring_layout(g)
-    #
-    # networkx.draw_networkx_nodes(g, pos, node_size=2000)
-    #
-    # networkx.draw_networkx_edges(g, pos, edgelist=g.edges,
-    #                              width=6)
-    #
-    # networkx.draw_networkx_labels(g, pos, font_size=15, font_family='sans-serif')
-    # plt.axis('off')
-    # plt.show()
-    return pr, g
+    # return pr, g
 
 
-def getKeyphrasesFromGraph(g: networkx.Graph, n_iter=1, d=0.15):
+def getPageRankFromGraph(g: networkx.Graph, n_iter=1, d=0.15):
     # N is the total number of candidates
 
     N = len(g.nodes)
@@ -215,13 +247,16 @@ def getKeyphrasesFromGraph(g: networkx.Graph, n_iter=1, d=0.15):
         # print(Helper.dictToOrderedList(pr_pi, rev=True))
         diff = Helper.getMaxDiff(pr.values(), pr_pi.values())
         pr = pr_pi
-        if diff < 0.01:
+        if diff < 0.1:
             break
-    with open('pr.csv', 'w', newline='') as f:
-        writer = csv.writer(f)
-        for k, v in pr.items():
-            writer.writerow([k, v])
-    return list(OrderedDict(Helper.dictToOrderedList(pr, rev=True)).keys())
+
+    return pr
+
+
+def getKeyphrases(doc):
+    g = buildGraph(doc)
+    pr = getPageRankFromGraph(g, n_iter=15)
+    return list(OrderedDict(Helper.dictToOrderedList(pr, rev=True)).keys()), g
 
 
 def main():
@@ -241,7 +276,7 @@ def multi_process(test):
         fts = {}
         kfs = {}
         for file in test:
-            fts.update({executor.submit(buildGraph, test[file].lower()): file})
+            fts.update({executor.submit(getKeyphrases, test[file].lower()): file})
         for future in as_completed(fts):
             file = fts[future]
             kfs.update({file: future.result()})
