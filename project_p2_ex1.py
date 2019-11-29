@@ -70,7 +70,7 @@ class Helper:
         for i, sentence in enumerate(xml):
             SEPARATOR = '\r\n'
             tokens = sentence.getElementsByTagName('token')
-            result += ' '.join([t.getElementsByTagName('word')[0].firstChild.nodeValue for t in tokens])
+            result += ' '.join([t.getElementsByTagName('lemma')[0].firstChild.nodeValue for t in tokens])
             if not result.endswith('.'):
                 result += '.'
             result += SEPARATOR
@@ -126,7 +126,7 @@ class Helper:
 
     @staticmethod
     def logical():
-        return version_info >= (3, 8, 0)
+        return version_info >= (3, 7, 0)
 
 
 class Metrics:
@@ -169,8 +169,12 @@ def buildGramsUpToN(doc, n):
     ngrams = []
     doc = doc.lower()
 
-    s = [sentence.translate(str.maketrans(string.punctuation, ' ' * len(string.punctuation))) for sentence in
+    # ' ' * len(string.punctuation)
+    #s = [re.sub('[^\w\s]','',sentence) for sentence in
+
+    s = [sentence.translate(str.maketrans("", "", string.punctuation)) for sentence in
          nltk.sent_tokenize(doc)]
+
     sents = [nltk.word_tokenize(_) for _ in s]
 
     # remove stop_words
@@ -247,7 +251,7 @@ def getPageRankFromGraph(g: networkx.Graph, n_iter=1, d=0.15):
         # print(Helper.dictToOrderedList(pr_pi, rev=True))
         diff = Helper.getMaxDiff(pr.values(), pr_pi.values())
         pr = pr_pi
-        if diff < 0.1:
+        if diff < 0.0001:
             break
 
     return pr
