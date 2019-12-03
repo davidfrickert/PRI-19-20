@@ -4,7 +4,6 @@ import sys
 import time
 from math import log
 
-import gensim
 import nltk
 import string
 
@@ -26,28 +25,41 @@ def findBiggestGram(candidates):
     return max_gram
 
 
-def getAllChunks(tagged_sents, grammar=r'KT: {(<JJ>* <NN.*>+ <IN>)? <JJ>* <NN.*>+}'):
+def getAllChunks(tagged_sents, grammar=r'KT: {(<JJ>* <NN.*>+ <IN>)? <JJ>* <NN.*>+}', deliver_as='list'):
     punct = set(string.punctuation)
     stop_words = set(nltk.corpus.stopwords.words('english'))
     chunker = nltk.chunk.regexp.RegexpParser(grammar)
 
     all_chunks = [nltk.chunk.tree2conlltags(chunker.parse(tagged_sent))
                   for tagged_sent in tagged_sents]
-    candidates = set()
+
+    if deliver_as == 'sentences':
+        candidates = []
+        for sentence in all_chunks:
+            candidates.append(set([' '.join(word for word, pos, chunk in group).lower()
+                                           for key, group in itertools.groupby(sentence, lambda tpl: tpl[2] != 'O') if
+                                           key]))
+        return [[cand for cand in sent if cand not in stop_words and not all(char in punct for char in cand)]
+                for sent in candidates]
+              #  ]
+    else:
+        candidates = set()
+        for sentence in all_chunks:
+            candidates = candidates | set([' '.join(word for word, pos, chunk in group).lower()
+                                           for key, group in itertools.groupby(sentence, lambda tpl: tpl[2] != 'O') if
+                                           key])
+
+        return [cand for cand in candidates
+                if cand not in stop_words and not all(char in punct for char in cand)]
 
     # all_chunks is a list of lists. the inner lists are chunks for each sentence (so we don't have multi-sentence candidates)
-    for sentence in all_chunks:
-        candidates = candidates | set([' '.join(word for word, pos, chunk in group).lower()
-                                       for key, group in itertools.groupby(sentence, lambda tpl: tpl[2] != 'O') if key])
 
-    return [cand for cand in candidates
-            if cand not in stop_words and not all(char in punct for char in cand)]
 
 
 def getTFIDFScore(dataset, mergetype='list'):
     # extract candidates from each text in texts, either chunks or words
 
-    ds = getAllCandidates(dataset)
+    ds = list(itertools.chain.from_iterable(getAllCandidates(dataset, deliver_as='sentences')))
     words = listOfTaggedToListOfWords(dataset)
 
     vec = TfidfVectorizer(tokenizer=lambda i: i, lowercase=False)
@@ -68,8 +80,8 @@ def getTFIDFScore(dataset, mergetype='list'):
         return merge(dataset, terms, X)
 
 
-def getAllCandidates(dataset):
-    return [getAllChunks(text) for text in dataset.values()]
+def getAllCandidates(dataset, deliver_as='list'):
+    return [getAllChunks(text, deliver_as=deliver_as) for text in dataset.values()]
 
 
 def listOfTaggedToString(dataset):
@@ -97,8 +109,12 @@ def listOfTaggedToListOfWords(dataset):
     return documents
 
 
-def getBM25Score(dataset, k1=1.2, b=0.75, mergetype='list', min_df=2):
-    ds = getAllCandidates(dataset)
+def getBM25Score(dataset, k1=1.2, b=0.75, mergetype='list', min_df=2, cands=None):
+    if not cands:
+        cands = getAllCandidates(dataset, deliver_as='sentences')
+        ds = [list(itertools.chain.from_iterable(doc)) for doc in cands]
+    else:
+        ds = cands
     words = listOfTaggedToListOfWords(dataset)
     # documents = listOfTaggedToString(dataset)
     # stopW = set(nltk.corpus.stopwords.words('english'))

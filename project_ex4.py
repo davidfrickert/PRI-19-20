@@ -13,6 +13,9 @@ from project_ex2 import getDataFromDir
 from project_ex3 import getAllCandidates, getTFIDFScore, listOfTaggedToString, getBM25Score
 import sklearn.metrics
 
+# nltk.download('maxent_ne_chunker')
+# nltk.download('words')
+from project_p2_ex1 import Metrics, Helper
 
 
 def createTargetList(reference, term_list):
@@ -84,13 +87,13 @@ def calculateParameters(all_cands, doc, scores):
 
         # print([cand_score, freq, cand_len, cand_term_count, first_match, last_match, spread, ne_cnt])
 
-        params.append([cand_score, cand_len, cand_term_count, first_match, last_match, spread]) #cand_score,
+        params.append([cand_score, cand_len, cand_term_count, first_match, last_match, spread, ne_cnt]) #cand_score,
     return params
 
 
 def calcResults(predicted, true):
-    return precision_score(true, predicted), recall_score(true, predicted), f1_score(true, predicted), average_precision_score(true, predicted)
-
+    # , average_precision_score(true, predicted)
+    return precision_score(true, predicted), recall_score(true, predicted), f1_score(true, predicted)
 
 p_classifier = Perceptron(alpha=0.1)
 
@@ -134,30 +137,39 @@ precision = []
 recall = []
 f1 = []
 ap = []
+tr = Helper.getTrueKeyphrases('ake-datasets-master/datasets/500N-KPCrowd/references/test.reader.stem.json')
+kfs = {}
 
 for doc_index, doc_name in enumerate(test.keys()):
     params = calculateParameters(allCandidatesTest[doc_index], testStr[doc_index], bm25test[doc_name])
 
     predicted = p_classifier.predict(params)
+    plane = p_classifier.decision_function(params)
     true = testTargets[doc_name]
 
     print('PERCEPTRON')
     print(predicted)
+    print('[P2]', plane)
     print('REALITY')
     print(true)
 
-    p, r, f, aps = calcResults(predicted, true)
+    rnk = {list(bm25test[doc_name].keys())[i]: v for i, v in enumerate(plane) if v > 0}
+    rnk = list(dict(Helper.dictToOrderedList(rnk, rev=True)).keys())
+    p, r, f = calcResults(predicted, true)
+    kfs[doc_name] = rnk
 
-    precision.append(p)
-    recall.append(r)
-    f1.append(f)
-    ap.append(aps)
+    #precision.append(p)
+    #recall.append(r)
+    #f1.append(f)
+    #ap.append(aps)
 
+meanAPre, meanPre, meanRe, meanF1 = Helper.results(kfs, 'ake-datasets-master/datasets/500N-KPCrowd/references/test'
+                                                        '.reader.stem.json')
 print('--RESULTS--')
-print(sum(precision) / len(precision))
-print(sum(recall) / len(precision))
-print(sum(f1) / len(f1))
-print(sum(ap) / len(ap))
+print('Precision = ', meanPre)
+print('Recall = ', meanRe)
+print('F1 = ', meanF1)
+print('Mean AVG Precision = ', meanAPre)
 
 # for dos documentos
 # para cada doc_name extrair candidatos
