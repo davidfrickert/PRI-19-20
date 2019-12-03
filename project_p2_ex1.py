@@ -1,4 +1,4 @@
-import csv
+import itertools
 import itertools
 import json
 import operator
@@ -15,10 +15,9 @@ from xml.dom.minidom import parse
 
 import networkx
 import nltk
-from networkx import pagerank
 from nltk.corpus import stopwords
 from psutil import cpu_count
-from sklearn.metrics import average_precision_score, precision_score, recall_score, f1_score
+from sklearn.metrics import precision_score, recall_score, f1_score
 
 stop_words = set(stopwords.words('english'))
 
@@ -30,7 +29,7 @@ class Helper:
 
     @staticmethod
     def getMaxDiff(pr0, pr1):
-        return max(map(abs, map(float.__sub__, pr1, pr0)))
+        return mean(map(abs, map(float.__sub__, pr1, pr0)))
 
     @staticmethod
     def stemKF(kf):
@@ -88,6 +87,12 @@ class Helper:
         return result
 
     @staticmethod
+    def getTrueKeyphrases(reference):
+        with open(reference) as f:
+            reference_results = json.load(f)
+            return {k: list(itertools.chain.from_iterable(v)) for k, v in reference_results.items()}
+
+    @staticmethod
     def results(res, reference):
         avg_prec = {}
         prec = {}
@@ -97,8 +102,8 @@ class Helper:
         with open(reference) as f:
             reference_results = json.load(f)
             for doc_name in res.keys():
-                pr, g = res[doc_name]
-                #nvals = int(0.1 * len(g.nodes))
+                pr = res[doc_name]
+                # nvals = int(0.1 * len(g.nodes))
                 nvals = 50
                 doc_results = set(itertools.chain.from_iterable(reference_results[doc_name]))
                 print(nvals - len(doc_results))
@@ -114,7 +119,6 @@ class Helper:
                 re.update({doc_name: recall_score(y_true, y_score)})
                 f1.update({doc_name: f1_score(y_true, y_score)})
                 avg[doc_name] = nvals / len(doc_results)
-
 
         meanAPre = mean(avg_prec.values())
         meanPrec = mean(prec.values())
@@ -169,10 +173,7 @@ def buildGramsUpToN(doc, n):
     ngrams = []
     doc = doc.lower()
 
-    # ' ' * len(string.punctuation)
-    #s = [re.sub('[^\w\s]','',sentence) for sentence in
-
-    s = [sentence.translate(str.maketrans("", "", string.punctuation)) for sentence in
+    s = [sentence.translate(str.maketrans("", "", string.punctuation + string.digits)) for sentence in
          nltk.sent_tokenize(doc)]
 
     sents = [nltk.word_tokenize(_) for _ in s]
@@ -219,8 +220,9 @@ def buildGraph(doc):
     # Step 3
     # Add edges
     # for each phrase (ngrams[i] is a list of words in phrase 'i') get all combinations of all words as edges
+    # combinationsN(ngrams[0], 2)
     [g.add_edges_from(itertools.combinations(ngrams[i], 2)) for i in range(len(ngrams))]
-
+    # [g.add_edges_from(combinationsN(ngrams[i], 10)) for i in range(len(ngrams))]
     # print('Edges', g.edges)
     return g
     # pr = getKeyphrasesFromGraph(g, n_iter=15)
@@ -230,49 +232,43 @@ def buildGraph(doc):
     # return pr, g
 
 
+def combinationsN(list, n):
+    combs = []
+    for i, word in enumerate(list):
+        min_ind = max(0, i - n)
+        max_ind = min(len(list), i + n + 1)
+        c = list[min_ind:max_ind]
+        c.remove(word)
+        combs += [(word, w2) for w2 in c]
+    return combs
+
+
 def getPageRankFromGraph(g: networkx.Graph, n_iter=1, d=0.15):
     # N is the total number of candidates
 
     N = len(g.nodes)
-    pr = pagerank(g)
+    pr = dict(zip(g.nodes, [1 / len(g.nodes) for _ in range(len(g.nodes))]))
 
     # cand := pi, calculate PR(pi) for all nodes
     for _ in range(n_iter):
         pr_pi = {}
         for cand in g.nodes:
             pi_links = g.edges(cand)
-            # e = (pi, pj)
-            # pj = e[1]
-            # PR(pj) = pr[pj] = pr[e[1]]
-            # Links(pj) = g.edges(pj) = g.edges(e[1])
             sum_pr_pj = sum([pr[e[1]] / len(g.edges(e[1])) for e in pi_links])
             pr_pi[cand] = d / N + (1 - d) * sum_pr_pj
 
-        # print(Helper.dictToOrderedList(pr_pi, rev=True))
         diff = Helper.getMaxDiff(pr.values(), pr_pi.values())
         pr = pr_pi
-        if diff < 0.0001:
+        if diff < 0.00001:
             break
-
+    print(sum(pr.values()))
     return pr
 
 
 def getKeyphrases(doc):
     g = buildGraph(doc)
     pr = getPageRankFromGraph(g, n_iter=15)
-    return list(OrderedDict(Helper.dictToOrderedList(pr, rev=True)).keys()), g
-
-
-def main():
-    test = Helper.getDataFromDir('ake-datasets-master/datasets/500N-KPCrowd/test')
-    # with open('nyt.txt', 'r') as doc:
-    #     doc = ' '.join(doc.readlines())
-
-    # if windows do single process because multiprocess not working
-    if system() == 'Windows' and not Helper.logical():
-        single_process(test)
-    else:
-        multi_process(test)
+    return list(OrderedDict(Helper.dictToOrderedList(pr, rev=True)).keys())
 
 
 def multi_process(test):
@@ -291,7 +287,7 @@ def multi_process(test):
     print(f'Mean Recall for {len(kfs.keys())} documents: ', meanRe)
     print(f'Mean F1 for {len(kfs.keys())} documents: ', meanF1)
 
-
+# NOT UPDATED, USE MULTI-PROCESS
 def single_process(test):
     kfs = {}
     for file in test:
@@ -305,6 +301,20 @@ def single_process(test):
     print(f'Mean Precision for {len(kfs.keys())} documents: ', meanPre)
     print(f'Mean Recall for {len(kfs.keys())} documents: ', meanRe)
     print(f'Mean F1 for {len(kfs.keys())} documents: ', meanF1)
+
+
+def main():
+    test = Helper.getDataFromDir('ake-datasets-master/datasets/500N-KPCrowd/test')
+    # with open('nyt.txt', 'r') as doc:
+    #     doc = ' '.join(doc.readlines())
+    #     test = {'nyt.txt': doc}
+    #     print(getKeyphrases(doc)[0][:5])
+    # if windows do single process because multiprocess not working
+
+    if system() == 'Windows' and not Helper.logical():
+        single_process(test)
+    else:
+        multi_process(test)
 
 
 if __name__ == '__main__':
