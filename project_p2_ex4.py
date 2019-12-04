@@ -83,7 +83,10 @@ def generateWordCloud(documents):
     counter = 1
     for title in documents:
         wordcloud = WordCloud(max_font_size=50, max_words=100, background_color="white").generate(documents[title])
-        path = "img/" + str(counter) + ".png"
+        path = 'img/'
+        if not os.path.exists(path):
+            os.makedirs(path)
+        path = path + str(counter) + ".png"
         wordcloud.to_file(path)
         counter += 1
 
@@ -165,21 +168,22 @@ def fetchCategory(category: str):
     documents = formatDocuments(xml)
     createNewsFiles(documents, category)
     keywords = run(f'news/{category}')
+    return documents, keywords
 
 def main():
     cats = ['Technology', 'World', 'US', 'HomePage', 'Politics']
     with open("page.html", "w"):
         for category in cats:
-            fetchCategory(category)
+            documents, keywords = fetchCategory(category)
 
-            # Helper.printDict(keywords)
+            Helper.printDict(keywords)
 
             # plotKeyphrases("pr.csv")
 
-            # generateWordCloud(documents)
+            generateWordCloud(documents)
 
-            # text_file = open("page.html", "w")
-            # text_file.write(generateHTML(documents))
+            text_file = open("page.html", "w")
+            text_file.write(generateHTML(documents))
 
 
 if __name__ == "__main__":
