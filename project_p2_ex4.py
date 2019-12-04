@@ -141,7 +141,7 @@ def main():
         
         createNewsFiles(documents)
 
-        keywords = run("news/")
+        keywords = run("news")
 
         #Helper.printDict(keywords)
 
