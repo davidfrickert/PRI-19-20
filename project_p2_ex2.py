@@ -82,7 +82,7 @@ def buildGraph(candidates, model, collection: list = None):
     edges = list(
         itertools.chain.from_iterable([itertools.combinations(candidates[i], 2) for i in range(len(candidates))]))
     # edges = [e for e in edges if not anyIn(*e)]
-    new_edges = addWeights(edges, model)  # , collection=collection) #uncomment for co-occurence
+    new_edges = addWeights(edges, model, collection=collection)  # , collection=collection) #uncomment for co-occurence
     g.add_weighted_edges_from(new_edges)
 
     # print('Edges', g.edges)
@@ -101,14 +101,14 @@ def buildGraph(candidates, model, collection: list = None):
 def prior(doc_index, cand, info):
     scores = list(info['score'].values())[doc_index]
     if cand in scores:
-        #tf_idf = info['TF-IDF'][doc_index][info['terms'].index(cand)]
+        # tf_idf = info['TF-IDF'][doc_index][info['terms'].index(cand)]
         score = scores[cand]
         if score <= 0.:
             print('no score for: ' + cand)
         return score
-        #if tf_idf <= 0.:
+        # if tf_idf <= 0.:
         #    print(cand + ' has 0 tf_idf')
-        #return tf_idf
+        # return tf_idf
     else:
         print(cand + ' not found in tf_idf matrix.. doc_i=' + str(doc_index))
     return 0
@@ -128,8 +128,8 @@ def priorCandLocation(cand: str, doc: str):
 
 
 def addWeights(edges, model, collection=None):
-    # weights = co_ocurrence(edges, collection)
-    weights = weightsWMD(edges, model)
+    weights = co_ocurrence(edges, collection)
+    #weights = weightsWMD(edges, model)
     n_edges = [e + (w,) for (e, w) in zip(edges, weights)]
     return n_edges
 
@@ -144,12 +144,12 @@ def co_ocurrence(edges, collection):
     co_oc = []
     for doc in collection:
         sentences = nltk.sent_tokenize(doc)
-        sentences = [sentence.translate(str.maketrans(string.punctuation, ' ' * len(string.punctuation)))
+        sentences = [sentence.translate(str.maketrans("", "", string.punctuation + string.digits))
                      for sentence in sentences]
-        new_sents = []
-        for sent in sentences:
-            new_sents.append(' '.join([word for word in nltk.word_tokenize(sent) if word not in stop_words]))
-        sentences = new_sents
+        # new_sents = []
+        # for sent in sentences:
+        #    new_sents.append(' '.join([word for word in nltk.word_tokenize(sent) if word not in stop_words]))
+        # sentences = new_sents
 
         for sent in sentences:
             for i, edge in enumerate(edges):
@@ -176,9 +176,8 @@ def getKeyphrases(doc: str, info: dict, candidates=None, collection: list = None
     g = buildGraph(candidates, info['model'], collection=collection)
     # change n_iter, 1 for now for testing purposes
     pr = computeWeightedPR(g, doc_i, info, n_iter=50)
-    kf = list(OrderedDict(Helper.dictToOrderedList(pr, rev=True)).keys())
     print(f'finished graph for doc nº {doc_i}')
-    return kf
+    return pr
 
 
 def div_zero(n, d):
@@ -186,20 +185,10 @@ def div_zero(n, d):
 
 
 def computeWeightedPR(g: networkx.Graph, doc_i: int, info: dict, n_iter=1, d=0.15):
-    # pr = pagerank(g, weight='weight')
-    # pr = dict(
-    #     zip(
-    #         g.nodes,
-    #         [d * div_zero(prior(doc_i, pi, info), sum([prior(doc_i, pj[1], info) for pj in g.edges(pi)])) for pi in
-    #          g.nodes]
-    #     )
-    # )
-    pr = pagerank(g, personalization=list(info['score'].values())[doc_i])
-    return pr
     pr = dict(zip(g.nodes, [1 / len(g.nodes) for _ in range(len(g.nodes))]))
-    diff_list = []
-    # print(sum(pr.values()))
     N = len(g.nodes)
+    rate = 0.00001
+
     # cand := pi, calculate PR(pi) for all nodes
     for _ in range(n_iter):
         pr_pi = {}
@@ -211,7 +200,8 @@ def computeWeightedPR(g: networkx.Graph, doc_i: int, info: dict, n_iter=1, d=0.1
             # ∑pjPrior(pj)
             rst_array = []
 
-            div = sum([prior(doc_i, w, info) for w in pi_links])
+            # div = sum([prior(doc_i, w, info) for w in pi_links])
+            div = sum([prior(doc_i, c, info) for c in g.nodes])
             if div == 0:
                 div = 1
 
@@ -219,10 +209,12 @@ def computeWeightedPR(g: networkx.Graph, doc_i: int, info: dict, n_iter=1, d=0.1
                 pj_links = list(map(lambda e: e[1], g.edges(pj)))
                 bot = sum([g.edges[pj, pk]['weight'] for pk in pj_links])
                 if bot == 0:
-                    print(f'cand {pi} has 0 div, links = {pi_links}, doc_i={doc_i}')
+                    # print(f'cand {pi} has 0 div, links = {pi_links}, doc_i={doc_i}')
                     bot = 1
-                top = pr[pj] * g.edges[pj, pi]['weight']
-                rst_array.append(top / bot)
+                weight = g.edges[pj, pi]['weight']
+                if weight != 0.0:
+                    top = pr[pj] * weight
+                    rst_array.append(top / bot)
             rst = sum(rst_array)
 
             # div = sum([priorCandLocation(w, doc) for w in pi_links])
@@ -232,19 +224,20 @@ def computeWeightedPR(g: networkx.Graph, doc_i: int, info: dict, n_iter=1, d=0.1
             # pr_pi[pi] = d * (priorCandLocation(pi, doc) / div) + (1 - d) * rst
             # pr_pi[cand] = d / N + (1 - d) * sum_pr_pj
 
-        diff = Helper.getMaxDiff(pr.values(), pr_pi.values())
-        sum_pr = sum(pr_pi.values())
+        isConverged = Helper.checkConvergence(pr.values(), pr_pi.values(), N, rate)
 
-        print(Helper.dictToOrderedList(pr_pi, rev=True))
-        print('Max diff', diff)
-        print('sum of PR', sum_pr)
+        # print(Helper.dictToOrderedList(pr_pi, rev=True))
+        # print('Converged? ', isConverged)
+        # print('sum of PR', sum_pr)
 
-        # pr = old iter, pr_pi = new iter
-        diff_list.append(diff)
         pr = pr_pi
-        # converges at max rate of 0.01
-        if diff < 0.00001:
+
+        if isConverged:
             break
+
+    print(f'{doc_i} finished - {Helper.dictToOrderedList(pr, rev=True)}')
+    sum_pr = sum(pr.values())
+    print(f'{doc_i} sum of PR = ', sum_pr)
     # with open('pr.csv', 'w', newline='') as f:
     #     writer = csv.writer(f)
     #     for k, v in pr.items():
@@ -279,7 +272,7 @@ def single_process(ds):
         kfs.update({file: d_pr})
 
     meanAPre, meanPre, meanRe, meanF1 = Helper.results(kfs, 'ake-datasets-master/datasets/500N-KPCrowd/references'
-                                                            '/test.reader.stem.json')
+                                                            '/train.reader.stem.json')
     print(f'Mean Avg Pre for {len(kfs.keys())} documents: ', meanAPre)
     print(f'Mean Precision for {len(kfs.keys())} documents: ', meanPre)
     print(f'Mean Recall for {len(kfs.keys())} documents: ', meanRe)
@@ -291,8 +284,7 @@ def single_process(ds):
 '''
 
 
-def multi_process(ds):
-    # cpu_count(logical=Helper.logical())
+def getPageRanklOfDataset(ds):
     with ProcessPoolExecutor(max_workers=cpu_count(logical=Helper.logical())) as executor:
         fts = {}
         kfs = {}
@@ -306,8 +298,14 @@ def multi_process(ds):
         for future in as_completed(fts):
             file = fts[future]
             kfs.update({file: future.result()})
+    return kfs
+
+def multi_process(ds):
+    # cpu_count(logical=Helper.logical())
+    pr = getPageRanklOfDataset(ds)
+    kfs = dict(zip(pr.keys(), [list(OrderedDict(Helper.dictToOrderedList(p, rev=True)).keys()) for p in pr.values()]))
     meanAPre, meanPre, meanRe, meanF1 = Helper.results(kfs,
-                                                       'ake-datasets-master/datasets/500N-KPCrowd/references/test'
+                                                       'ake-datasets-master/datasets/500N-KPCrowd/references/train'
                                                        '.reader.stem.json')
     print(f'Mean Avg Pre for {len(kfs.keys())} documents: ', meanAPre)
     print(f'Mean Precision for {len(kfs.keys())} documents: ', meanPre)
@@ -345,7 +343,7 @@ def calculateTF_IDFAndNormalize(datasetFileName: str, backgroundCollectionFileNa
 
 def main():
     TEST = False
-    test = Helper.getDataFromDir('ake-datasets-master/datasets/500N-KPCrowd/test', mode='list')
+    test = Helper.getDataFromDir('ake-datasets-master/datasets/500N-KPCrowd/train', mode='list')
     # test = dict(zip(list(test.keys())[:2], list(test.values())[:2]))
 
     # model = KeyedVectors.load_word2vec_format('wiki-news-300d-1M.vec')
