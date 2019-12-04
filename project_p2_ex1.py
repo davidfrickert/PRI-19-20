@@ -28,8 +28,8 @@ class Helper:
         return sorted(d.items(), key=operator.itemgetter(1), reverse=rev)
 
     @staticmethod
-    def getMaxDiff(pr0, pr1):
-        return mean(map(abs, map(float.__sub__, pr1, pr0)))
+    def checkConvergence(pr0, pr1, N, rate):
+        return sum(map(abs, map(float.__sub__, pr1, pr0))) < N * rate
 
     @staticmethod
     def stemKF(kf):
@@ -248,7 +248,7 @@ def getPageRankFromGraph(g: networkx.Graph, n_iter=1, d=0.15):
 
     N = len(g.nodes)
     pr = dict(zip(g.nodes, [1 / len(g.nodes) for _ in range(len(g.nodes))]))
-
+    rate = 0.00001
     # cand := pi, calculate PR(pi) for all nodes
     for _ in range(n_iter):
         pr_pi = {}
@@ -257,9 +257,9 @@ def getPageRankFromGraph(g: networkx.Graph, n_iter=1, d=0.15):
             sum_pr_pj = sum([pr[e[1]] / len(g.edges(e[1])) for e in pi_links])
             pr_pi[cand] = d / N + (1 - d) * sum_pr_pj
 
-        diff = Helper.getMaxDiff(pr.values(), pr_pi.values())
+        isConverged = Helper.checkConvergence(pr.values(), pr_pi.values(), N, rate)
         pr = pr_pi
-        if diff < 0.00001:
+        if isConverged:
             break
     print(sum(pr.values()))
     return pr
@@ -281,7 +281,7 @@ def multi_process(test):
             file = fts[future]
             kfs.update({file: future.result()})
     meanAPre, meanPre, meanRe, meanF1 = Helper.results(kfs,
-                                                       'ake-datasets-master/datasets/500N-KPCrowd/references/test.reader.stem.json')
+                                                       'ake-datasets-master/datasets/500N-KPCrowd/references/train.reader.stem.json')
     print(f'Mean Avg Pre for {len(kfs.keys())} documents: ', meanAPre)
     print(f'Mean Precision for {len(kfs.keys())} documents: ', meanPre)
     print(f'Mean Recall for {len(kfs.keys())} documents: ', meanRe)
@@ -295,7 +295,7 @@ def single_process(test):
         kfs.update({file: kf})
 
     meanAPre, meanPre, meanRe, meanF1 = Helper.results(kfs,
-                                                       'ake-datasets-master/datasets/500N-KPCrowd/references/test'
+                                                       'ake-datasets-master/datasets/500N-KPCrowd/references/train'
                                                        '.reader.stem.json')
     print(f'Mean Avg Pre for {len(kfs.keys())} documents: ', meanAPre)
     print(f'Mean Precision for {len(kfs.keys())} documents: ', meanPre)
@@ -304,7 +304,7 @@ def single_process(test):
 
 
 def main():
-    test = Helper.getDataFromDir('ake-datasets-master/datasets/500N-KPCrowd/test')
+    test = Helper.getDataFromDir('ake-datasets-master/datasets/500N-KPCrowd/train')
     # with open('nyt.txt', 'r') as doc:
     #     doc = ' '.join(doc.readlines())
     #     test = {'nyt.txt': doc}
