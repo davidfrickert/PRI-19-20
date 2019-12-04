@@ -19,6 +19,27 @@ from wordcloud import WordCloud
 from yattag import Doc
 
 # keyword gen
+#parse
+from urllib.request import urlopen
+from xml.etree.ElementTree import parse
+from nltk import sent_tokenize, word_tokenize, pos_tag
+from nltk.stem import PorterStemmer
+
+#gen wordcloud
+import numpy as np
+import pandas as pd
+from os import path
+from PIL import Image
+from wordcloud import WordCloud, STOPWORDS, ImageColorGenerator
+
+#gen plot
+import matplotlib.pyplot as plt
+
+#gen html
+from yattag import Doc
+import xml.etree.cElementTree as et
+
+#keyword gen
 from project_p2_ex3 import run
 
 
@@ -45,8 +66,8 @@ def formatDocuments(xml):
 
     return documents
 
-
 def plotKeyphrases(csvFile):
+
     df = pd.read_csv(csvFile)
 
     plt.figure(figsize=(15, 10))

@@ -52,6 +52,27 @@ def getRecipRankFusionScore(words):
 
     return dict(Helper.dictToOrderedList(RRFScore, rev=True)[:50])
 
+def run(path):
+    test = Helper.getDataFromDir(path, mode='list')
+    testStr = listOfTaggedToString(test)
+    print(test.keys())
+    #return
+    #test = dict(zip(list(test.keys()), list(test.values())))
+    info = getInfo(test)
+    cands = getAllCandidates(test)
+    rrfScores = {}
+
+    for i, doc_name in enumerate(test.keys()):
+        # cands =  buildGramsUpToN(test[doc_name], 3)
+        # g = buildGraph(cands, info['model'])
+        #pr = computeWeightedPR(g, i, info, n_iter=15)
+        params = calculateParameters(testStr[i], info['score'][doc_name], cands[i])#, pr)
+        print(params)
+        rrfScores[doc_name] = list(getRecipRankFusionScore(params).keys())
+
+
+    return rrfScores
+
 
 def main():
     test = Helper.getDataFromDir('ake-datasets-master/datasets/500N-KPCrowd/test', mode='list')
