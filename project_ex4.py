@@ -87,7 +87,7 @@ def calculateParameters(all_cands, doc, scores):
 
         # print([cand_score, freq, cand_len, cand_term_count, first_match, last_match, spread, ne_cnt])
 
-        params.append([cand_score, cand_len, cand_term_count, first_match, last_match, spread, ne_cnt]) #cand_score,
+        params.append([cand_score, cand_len, cand_term_count, first_match, last_match, ne_cnt]) #cand_score,
     return params
 
 
