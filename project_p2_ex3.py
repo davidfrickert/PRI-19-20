@@ -6,9 +6,10 @@ import networkx
 import nltk
 from sklearn.feature_extraction.text import TfidfVectorizer
 
+from truecase import get_true_case
 from project_ex3 import getAllCandidates, listOfTaggedToString
 from project_p2_ex1 import Helper, buildGramsUpToN
-from project_p2_ex2 import buildGraph, getInfo, computeWeightedPR, getPageRanklOfDataset
+from project_p2_ex2 import buildGraph, getInfo, computeWeightedPR, getPageRankOfDataset
 import numpy as np
 
 
@@ -33,8 +34,8 @@ def calculateParameters(doc: str, scores: Dict[str, float], cands, pr: Dict[str,
 
         first_match = doc.find(cand) / len(doc)
         last_match = doc.rfind(cand) / len(doc)
-
-        words = nltk.pos_tag(nltk.word_tokenize(cand))
+        ne_cand = get_true_case(cand)
+        words = nltk.pos_tag(nltk.word_tokenize(ne_cand))
         ne = nltk.tree2conlltags(nltk.ne_chunk(words))
         ne = [' '.join(word for word, pos, chunk in group).lower()
               for key, group in itertools.groupby(ne, lambda tpl: tpl[2] != 'O') if key]
@@ -53,7 +54,6 @@ def calculateParameters(doc: str, scores: Dict[str, float], cands, pr: Dict[str,
     max_ = params.max(axis=0)
     params = np.divide(params, max_, out=np.zeros_like(params), where=max_ != 0)
     return dict(zip(all_cands, params))
-
 
 def getRecipRankFusionScore(words):
     RRFScore = {}
@@ -94,7 +94,7 @@ def main():
     # test = dict(zip(list(test.keys()), list(test.values())))
     info = getInfo(test)
     cands = getAllCandidates(test, deliver_as='sentences')
-    kfs = getPageRanklOfDataset(test)
+    kfs = getPageRankOfDataset(test)
     rrfScores = {}
 
     for i, doc_name in enumerate(test.keys()):
