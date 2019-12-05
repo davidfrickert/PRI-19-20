@@ -56,19 +56,22 @@ def getXML(url):
     return xml
 
 
-def formatDocuments(xml):
+def formatDocuments(xml, cat):
+    
     documents = dict()
 
+    documents[cat] = ""
     for item in xml.iterfind('channel/item'):
+        
         title = item.findtext('title')
         description = item.findtext('description')
-        documents[title] = description
-
+        documents[cat] += title+" "+description+" "
+    
     return documents
 
-def plotKeyphrases(csvFile):
+def plotKeyphrases(category):
 
-    df = pd.read_csv(csvFile)
+    df = pd.read_csv("CSV/" + category + ".csv")
 
     plt.figure(figsize=(15, 10))
     df.groupby("word").max().sort_values(by="weight", ascending=False)["weight"].plot.bar()
@@ -76,47 +79,51 @@ def plotKeyphrases(csvFile):
     plt.xlabel("Word")
     plt.ylabel("Weight")
     # plt.show()
-    # plt.savefig('books_read.png') #save to file
+    plt.savefig(category + '1.png') #save to file
 
 
-def generateWordCloud(documents):
-    counter = 1
-    for title in documents:
-        wordcloud = WordCloud(max_font_size=50, max_words=100, background_color="white").generate(documents[title])
+def generateWordCloud(documents, category):
+    for item in documents:
+        
+        s = ""
+        for word in documents[item]:
+            s = s + word + " "
+
+        wordcloud = WordCloud(max_font_size=50, max_words=100, background_color="white").generate(s)
         path = 'img/'
         if not os.path.exists(path):
             os.makedirs(path)
-        path = path + str(counter) + ".png"
+        path = path + category + ".png"
         wordcloud.to_file(path)
-        counter += 1
+    
 
-
-def generateHTML(documents):
+def generateHTML(documents, category):
     doc, tag, text = Doc().tagtext()
 
     with tag('html'):
         with tag('body'):
-            counter = 1
-            for title in documents:
+            for document in documents:
                 with tag('div', id='news', align='center'):
                     with tag('h1'):
-                        text("Title:")
+                        text("Category:")
 
-                    text(title)
+                    text(category)
 
                     with tag('h1'):
-                        text("Description:")
+                        text("Keywords:")
 
-                    text(documents[title])
+                    s = ""
+                    for word in documents[document]:
+                        s = s + word + "; "
+                    text(s)
 
                     with tag('h1'):
                         text("Wordcloud:")
 
                     with tag('div', id='photo-container'):
-                        path = "img/" + str(counter) + ".png"
+                        path = "img/" + category + ".png"
                         doc.stag('img', src=path, klass="photo")
 
-                    counter += 1
 
                 with tag('br'):
                     pass
@@ -126,22 +133,23 @@ def generateHTML(documents):
 
 def createNewsFiles(documents, category: str):
     porter = PorterStemmer()
-
+    
+    root = et.Element("root")
+    document = et.SubElement(root, "document")
+        
     for i, title in enumerate(documents):
         sentenceCounter = 1
         wordCounter = 1
 
-        root = et.Element("root")
-        document = et.SubElement(root, "document")
         sentences = et.SubElement(document, "sentences")
         for sent in sent_tokenize(documents[title]):
             sentence = et.SubElement(sentences, "sentence")
             sentence.set("id", str(sentenceCounter))
             tokens = et.SubElement(sentence, "tokens")
 
-            print(sent)
+            #print(sent)
             tags = pos_tag(' '.join(sent.split()).split(" "))
-            print(tags)
+            #print(tags)
             for word in tags:
                 token = et.SubElement(tokens, "token")
                 token.set("id", str(wordCounter))
@@ -152,38 +160,57 @@ def createNewsFiles(documents, category: str):
 
             sentenceCounter += 1
 
-        tree = et.ElementTree(root)
-       # tree.write("news/" + title.replace(" ", "_") + ".xml")
+    tree = et.ElementTree(root)
+    # tree.write("news/" + title.replace(" ", "_") + ".xml")
 
-        path = f'news/{category}/'
+    path = f'news/{category}/'
 
-        if not os.path.exists(path):
-            os.makedirs(path)
+    if not os.path.exists(path):
+        os.makedirs(path)
 
-        tree.write(path + str(i) + ".xml")
+    tree.write(path + str(i) + ".xml")
+
+def createCSV(keywords, category):
+    f = open("CSV/"+category+".csv", "w+")
+    s = ""
+    for word in keywords:
+        s += word + "," + str(keywords[word]) + "\n"
+    
+    f.write(s)
+    f.close()
 
 def fetchCategory(category: str):
     BASE_URL = 'https://rss.nytimes.com/services/xml/rss/nyt/'
     xml = getXML(f'{BASE_URL + category}.xml')
-    documents = formatDocuments(xml)
+    documents = formatDocuments(xml, category)
+    
     createNewsFiles(documents, category)
+    
     keywords = run(f'news/{category}')
     return documents, keywords
 
 def main():
     cats = ['Technology', 'World', 'US', 'HomePage', 'Politics']
-    with open("page.html", "w"):
-        for category in cats:
-            documents, keywords = fetchCategory(category)
+    text_file = open("page.html", "a+")
+    text_file.truncate(0)
 
-            Helper.printDict(keywords)
+    for category in cats:
+        documents, keywords = fetchCategory(category)
 
-            # plotKeyphrases("pr.csv")
+        Helper.printDict(keywords)
 
-            generateWordCloud(documents)
+        #keyword
+        # word -> score
+        
+        #createCSV(keywords, category)
 
-            text_file = open("page.html", "w")
-            text_file.write(generateHTML(documents))
+        #plotKeyphrases(category)
+        
+        generateWordCloud(keywords, category)
+        
+        text_file.write(generateHTML(keywords, category))
+
+    text_file.close()
 
 
 if __name__ == "__main__":
