@@ -1,36 +1,24 @@
 # parse
 import os
-import xml.etree.cElementTree as et
-from urllib.request import urlopen
-from xml.etree.ElementTree import parse
 
 # gen plot
 import matplotlib
 
-matplotlib.use('agg')
-import matplotlib.pyplot as plt
+from project_p2_ex2 import getPageRankOfDataset
 
-# gen wordcloud
-import pandas as pd
-from nltk import sent_tokenize, pos_tag
-from nltk.stem import PorterStemmer
-from wordcloud import WordCloud
-# gen html
-from yattag import Doc
+matplotlib.use('agg')
+
 
 # keyword gen
 #parse
 from urllib.request import urlopen
 from xml.etree.ElementTree import parse
-from nltk import sent_tokenize, word_tokenize, pos_tag
+from nltk import sent_tokenize, pos_tag
 from nltk.stem import PorterStemmer
 
 #gen wordcloud
-import numpy as np
 import pandas as pd
-from os import path
-from PIL import Image
-from wordcloud import WordCloud, STOPWORDS, ImageColorGenerator
+from wordcloud import WordCloud
 
 #gen plot
 import matplotlib.pyplot as plt
@@ -183,19 +171,34 @@ def fetchCategory(category: str):
     BASE_URL = 'https://rss.nytimes.com/services/xml/rss/nyt/'
     xml = getXML(f'{BASE_URL + category}.xml')
     documents = formatDocuments(xml, category)
-    
+
+    return documents
+
+def calcKeywords(documents, category):
     createNewsFiles(documents, category)
-    
+
     keywords = run(f'news/{category}')
-    return documents, keywords
+
+    #keywords = getPageRankOfDataset(f'news/{category}')
+
+    return keywords
 
 def main():
     cats = ['Technology', 'World', 'US', 'HomePage', 'Politics']
     text_file = open("page.html", "a+")
     text_file.truncate(0)
 
+    global_doc = ''
+    #build global doc
     for category in cats:
-        documents, keywords_with_score = fetchCategory(category)
+        documents = fetchCategory(category)
+        global_doc += ' '.join(list(documents.values()))
+
+    results = calcKeywords({'0': global_doc}, 'global')
+    print(results)
+    for category in cats:
+        documents = fetchCategory(category)
+        keywords_with_score = calcKeywords(documents, category)
         keywords = dict(zip(keywords_with_score.keys(),  [d.keys() for d in keywords_with_score.values()]))
         Helper.printDict(keywords_with_score)
 
