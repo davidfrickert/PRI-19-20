@@ -195,9 +195,9 @@ def main():
     text_file.truncate(0)
 
     for category in cats:
-        documents, keywords = fetchCategory(category)
-
-        Helper.printDict(keywords)
+        documents, keywords_with_score = fetchCategory(category)
+        keywords = dict(zip(keywords_with_score.keys(),  [d.keys() for d in keywords_with_score.values()]))
+        Helper.printDict(keywords_with_score)
 
         #keyword
         # word -> score
