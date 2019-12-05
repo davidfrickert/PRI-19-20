@@ -141,7 +141,7 @@ def createNewsFiles(documents, category: str):
             for word in tags:
                 token = et.SubElement(tokens, "token")
                 token.set("id", str(wordCounter))
-                et.SubElement(token, "lemma").text = porter.stem(word[0])
+                et.SubElement(token, "lemma").text = word[0].replace(',','').replace('.','').replace('?','').replace('!','')
                 et.SubElement(token, "POS").text = word[1]
 
                 wordCounter += 1
