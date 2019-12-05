@@ -284,7 +284,9 @@ def single_process(ds):
 '''
 
 
-def getPageRanklOfDataset(ds):
+def getPageRankOfDataset(ds):
+    if type(ds) == str:
+        ds = Helper.getDataFromDir(ds, mode='list')
     with ProcessPoolExecutor(max_workers=cpu_count(logical=Helper.logical())) as executor:
         fts = {}
         kfs = {}
@@ -300,9 +302,10 @@ def getPageRanklOfDataset(ds):
             kfs.update({file: future.result()})
     return kfs
 
+
 def multi_process(ds):
     # cpu_count(logical=Helper.logical())
-    pr = getPageRanklOfDataset(ds)
+    pr = getPageRankOfDataset(ds)
     kfs = dict(zip(pr.keys(), [list(OrderedDict(Helper.dictToOrderedList(p, rev=True)).keys()) for p in pr.values()]))
     meanAPre, meanPre, meanRe, meanF1 = Helper.results(kfs,
                                                        'ake-datasets-master/datasets/500N-KPCrowd/references/train'
