@@ -1,41 +1,37 @@
 # parse
+import itertools
 import os
 
 # gen plot
+from collections import OrderedDict
+
 import matplotlib
 
+from project_p2_ex1 import Helper
 from project_p2_ex2 import getPageRankOfDataset
 
 matplotlib.use('agg')
 
-
 # keyword gen
-#parse
+# parse
 from urllib.request import urlopen
 from xml.etree.ElementTree import parse
 from nltk import sent_tokenize, pos_tag
 from nltk.stem import PorterStemmer
 
-#gen wordcloud
+# gen wordcloud
 import pandas as pd
 from wordcloud import WordCloud
 
-#gen plot
+# gen plot
 import matplotlib.pyplot as plt
 
-#gen html
+# gen html
 from yattag import Doc
 import xml.etree.cElementTree as et
 
-#keyword gen
+# keyword gen
 from project_p2_ex3 import run
-
-
-class Helper:
-    @staticmethod
-    def printDict(d):
-        for item in d:
-            print(item, "-> ", d[item])
 
 
 def getXML(url):
@@ -45,20 +41,18 @@ def getXML(url):
 
 
 def formatDocuments(xml, cat):
-    
     documents = dict()
 
     documents[cat] = ""
     for item in xml.iterfind('channel/item'):
-        
         title = item.findtext('title')
         description = item.findtext('description')
-        documents[cat] += title+" "+description+" "
-    
+        documents[cat] += title + " " + description + " "
+
     return documents
 
-def plotKeyphrases(category):
 
+def plotKeyphrases(category):
     df = pd.read_csv("CSV/" + category + ".csv")
 
     plt.figure(figsize=(10, 7.5))
@@ -66,26 +60,24 @@ def plotKeyphrases(category):
     plt.xticks(rotation=50)
     plt.xlabel("Word")
     plt.ylabel("Weight")
-    plt.savefig("img/" +category + '1.png') #save to file
-
+    plt.savefig("img/" + category + '1.png')  # save to file
 
 
 def generateWordCloud(documents, category):
     for item in documents:
-        
+
         if category == "global":
             tmp = dict(itertools.islice(documents[item].items(), 49))
         else:
             tmp = dict(itertools.islice(documents[item].items(), 9))
-        
-        
+
         wordcloud = WordCloud(max_font_size=50, max_words=100, background_color="white").generate_from_frequencies(tmp)
         path = 'img/'
         if not os.path.exists(path):
             os.makedirs(path)
         path = path + category + ".png"
         wordcloud.to_file(path)
-    
+
 
 def generateHTML(documents, category):
     doc, tag, text = Doc().tagtext()
@@ -107,8 +99,8 @@ def generateHTML(documents, category):
                         s = s + word + "; "
                     text(s)
 
-                    #with tag('h1'):
-                        #text("Wordcloud:")
+                    # with tag('h1'):
+                    # text("Wordcloud:")
 
                     with tag('div', id='photo-container'):
                         path = "img/" + category + "1.png"
@@ -118,8 +110,6 @@ def generateHTML(documents, category):
                         path = "img/" + category + ".png"
                         doc.stag('img', src=path, klass="photo")
 
-
-
                 with tag('br'):
                     pass
 
@@ -128,10 +118,10 @@ def generateHTML(documents, category):
 
 def createNewsFiles(documents, category: str):
     porter = PorterStemmer()
-    
+
     root = et.Element("root")
     document = et.SubElement(root, "document")
-        
+
     for i, title in enumerate(documents):
         sentenceCounter = 1
         wordCounter = 1
@@ -142,13 +132,19 @@ def createNewsFiles(documents, category: str):
             sentence.set("id", str(sentenceCounter))
             tokens = et.SubElement(sentence, "tokens")
 
-            #print(sent)
+            # print(sent)
             tags = pos_tag(' '.join(sent.split()).split(" "))
-            #print(tags)
+            # print(tags)
             for word in tags:
+                l = word[0].replace(',', '').replace('.', '').replace('?', '').replace(
+                    '!', '')
+                if not l:
+                    continue
                 token = et.SubElement(tokens, "token")
                 token.set("id", str(wordCounter))
-                et.SubElement(token, "lemma").text = word[0].replace(',','').replace('.','').replace('?','').replace('!','')
+
+                et.SubElement(token, "lemma").text = l
+
                 et.SubElement(token, "POS").text = word[1]
 
                 wordCounter += 1
@@ -165,22 +161,27 @@ def createNewsFiles(documents, category: str):
 
     tree.write(path + str(i) + ".xml")
 
+
 def createCSV(keywords, category):
-    f = open("CSV/"+category+".csv", "w+")
+    path = "CSV/"
+    if not os.path.exists(path):
+        os.makedirs(path)
+    f = open(path + category + ".csv", "w+", encoding='utf8')
     s = "word,weight\n"
     if category == "global":
-        limit = 49    
+        limit = 49
     else:
         limit = 9
 
     for word in keywords:
-        for i,w in enumerate(keywords[word]):
+        for i, w in enumerate(keywords[word]):
             s += w + "," + str(keywords[word][w]) + "\n"
             if i == limit:
                 break
-    
+
     f.write(s)
     f.close()
+
 
 def fetchCategory(category: str):
     BASE_URL = 'https://rss.nytimes.com/services/xml/rss/nyt/'
@@ -189,22 +190,42 @@ def fetchCategory(category: str):
 
     return documents
 
+
 def calcKeywords(documents, category):
     createNewsFiles(documents, category)
 
-    keywords = run(f'news/{category}')
+    # keywords = run(f'news/{category}')
 
-    #keywords = getPageRankOfDataset(f'news/{category}')
-
+    keywords = getPageRankOfDataset(f'news/{category}')
+    keywords = {'0': OrderedDict(Helper.dictToOrderedList(keywords['0'], rev=True))}
     return keywords
 
+
+def relevantInCategory(category, categoryScores, globalScores):
+    doc = '0'
+    cScores = categoryScores[doc]
+    gScores = globalScores[doc]
+    relevants = []
+    for kf, score in cScores.items():
+        # if score higher in category than global, then relevant, else not
+        if cScores[kf] > gScores[kf]:
+            relevants.append(cScores)
+            print(kf + ' relevant in ' + category)
+        else:
+            print(kf + ' not relevant in ' + category)
+
+    return relevants
+
+
 def main():
-    cats = ['Technology', 'World', 'US', 'HomePage', 'Politics']
+    cats = ['Technology', 'Politics', 'Sports'
+            # 'World', 'US', 'HomePage','Business', 'Economy', 'Soccer', 'Science', 'Environment', 'Travel', 'Arts', 'Books'
+            ]
     text_file = open("page.html", "a+")
     text_file.truncate(0)
 
     global_doc = ''
-    #build global doc
+    # build global doc
     for category in cats:
         documents = fetchCategory(category)
         global_doc += ' '.join(list(documents.values()))
@@ -214,19 +235,21 @@ def main():
     for category in cats:
         documents = fetchCategory(category)
         keywords_with_score = calcKeywords(documents, category)
-        keywords = dict(zip(keywords_with_score.keys(),  [d.keys() for d in keywords_with_score.values()]))
+        keywords = dict(zip(keywords_with_score.keys(), [d.keys() for d in keywords_with_score.values()]))
         Helper.printDict(keywords_with_score)
 
-        #keyword
+        # keyword
         # word -> score
-        
+
         createCSV(keywords_with_score, category)
 
         plotKeyphrases(category)
-        
+
         generateWordCloud(keywords_with_score, category)
-        
+
         text_file.write(generateHTML(keywords, category))
+
+        relevantInCategory(category, keywords_with_score, results)
 
     text_file.close()
 
