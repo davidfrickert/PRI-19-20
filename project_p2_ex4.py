@@ -61,23 +61,19 @@ def plotKeyphrases(category):
 
     df = pd.read_csv("CSV/" + category + ".csv")
 
-    plt.figure(figsize=(15, 10))
+    plt.figure(figsize=(10, 7.5))
     df.groupby("word").max().sort_values(by="weight", ascending=False)["weight"].plot.bar()
     plt.xticks(rotation=50)
     plt.xlabel("Word")
     plt.ylabel("Weight")
-    # plt.show()
-    plt.savefig(category + '1.png') #save to file
+    plt.savefig("img/" +category + '1.png') #save to file
+
 
 
 def generateWordCloud(documents, category):
     for item in documents:
         
-        s = ""
-        for word in documents[item]:
-            s = s + word + " "
-
-        wordcloud = WordCloud(max_font_size=50, max_words=100, background_color="white").generate(s)
+        wordcloud = WordCloud(max_font_size=50, max_words=100, background_color="white").generate_from_frequencies(documents[item])
         path = 'img/'
         if not os.path.exists(path):
             os.makedirs(path)
@@ -105,12 +101,17 @@ def generateHTML(documents, category):
                         s = s + word + "; "
                     text(s)
 
-                    with tag('h1'):
-                        text("Wordcloud:")
+                    #with tag('h1'):
+                        #text("Wordcloud:")
 
                     with tag('div', id='photo-container'):
+                        path = "img/" + category + "1.png"
+                        doc.stag('img', src=path, klass="photo")
+                        with tag('br'):
+                            pass
                         path = "img/" + category + ".png"
                         doc.stag('img', src=path, klass="photo")
+
 
 
                 with tag('br'):
@@ -160,9 +161,10 @@ def createNewsFiles(documents, category: str):
 
 def createCSV(keywords, category):
     f = open("CSV/"+category+".csv", "w+")
-    s = ""
+    s = "word,weight\n"
     for word in keywords:
-        s += word + "," + str(keywords[word]) + "\n"
+        for w in keywords[word]:
+            s += w + "," + str(keywords[word][w]) + "\n"
     
     f.write(s)
     f.close()
@@ -205,11 +207,11 @@ def main():
         #keyword
         # word -> score
         
-        #createCSV(keywords, category)
+        createCSV(keywords_with_score, category)
 
-        #plotKeyphrases(category)
+        plotKeyphrases(category)
         
-        generateWordCloud(keywords, category)
+        generateWordCloud(keywords_with_score, category)
         
         text_file.write(generateHTML(keywords, category))
 
