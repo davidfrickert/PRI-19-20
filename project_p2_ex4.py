@@ -73,7 +73,13 @@ def plotKeyphrases(category):
 def generateWordCloud(documents, category):
     for item in documents:
         
-        wordcloud = WordCloud(max_font_size=50, max_words=100, background_color="white").generate_from_frequencies(documents[item])
+        if category == "global":
+            tmp = dict(itertools.islice(documents[item].items(), 49))
+        else:
+            tmp = dict(itertools.islice(documents[item].items(), 9))
+        
+        
+        wordcloud = WordCloud(max_font_size=50, max_words=100, background_color="white").generate_from_frequencies(tmp)
         path = 'img/'
         if not os.path.exists(path):
             os.makedirs(path)
@@ -162,9 +168,16 @@ def createNewsFiles(documents, category: str):
 def createCSV(keywords, category):
     f = open("CSV/"+category+".csv", "w+")
     s = "word,weight\n"
+    if category == "global":
+        limit = 49    
+    else:
+        limit = 9
+
     for word in keywords:
-        for w in keywords[word]:
+        for i,w in enumerate(keywords[word]):
             s += w + "," + str(keywords[word][w]) + "\n"
+            if i == limit:
+                break
     
     f.write(s)
     f.close()
