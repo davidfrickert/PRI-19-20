@@ -97,14 +97,6 @@ def generateHTML(documents, category):
                     with tag('h1'):
                         text("Keywords:")
 
-                    s = ""
-                    for word in documents[document]:
-                        s = s + word + "; "
-                    text(s)
-
-                    # with tag('h1'):
-                    # text("Wordcloud:")
-
                     with tag('div', id='photo-container'):
                         path = "img/" + category + "1.png"
                         doc.stag('img', src=path, klass="photo")
