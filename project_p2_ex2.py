@@ -128,8 +128,8 @@ def priorCandLocation(cand: str, doc: str):
 
 
 def addWeights(edges, model, collection=None):
-    weights = co_ocurrence(edges, collection)
-    #weights = weightsWMD(edges, model)
+    #weights = co_ocurrence(edges, collection)
+    weights = weightsWMD(edges, model)
     n_edges = [e + (w,) for (e, w) in zip(edges, weights)]
     return n_edges
 

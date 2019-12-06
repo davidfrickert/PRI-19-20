@@ -57,17 +57,20 @@ def plotKeyphrases(category):
 
     plt.figure(figsize=(10, 7.5))
     df.groupby("word").max().sort_values(by="weight", ascending=False)["weight"].plot.bar()
-    plt.xticks(rotation=50)
+    rot = 90 if category == 'Global' else 50
+    plt.xticks(rotation=rot)
     plt.xlabel("Word")
     plt.ylabel("Weight")
+    plt.tight_layout()
+    #plt.gcf().subplots_adjust(bottom=0.15)
     plt.savefig("img/" + category + '1.png')  # save to file
 
 
 def generateWordCloud(documents, category):
     for item in documents:
 
-        if category == "global":
-            tmp = dict(itertools.islice(documents[item].items(), 49))
+        if category == "Global":
+            tmp = dict(itertools.islice(documents[item].items(), 29))
         else:
             tmp = dict(itertools.islice(documents[item].items(), 9))
 
@@ -168,8 +171,8 @@ def createCSV(keywords, category):
         os.makedirs(path)
     f = open(path + category + ".csv", "w+", encoding='utf8')
     s = "word,weight\n"
-    if category == "global":
-        limit = 49
+    if category == "Global":
+        limit = 29
     else:
         limit = 9
 
@@ -205,7 +208,7 @@ def relevantInCategory(category, categoryScores, globalScores):
     doc = '0'
     cScores = categoryScores[doc]
     gScores = globalScores[doc]
-    relevants = []
+    relevants = {doc : {}}
     for kf, score in cScores.items():
         # if score higher in category than global, then relevant, else not
         if cScores[kf] > gScores[kf]:
@@ -230,7 +233,14 @@ def main():
         documents = fetchCategory(category)
         global_doc += ' '.join(list(documents.values()))
 
-    results = calcKeywords({'0': global_doc}, 'global')
+    gCat = 'Global'
+    results = calcKeywords({'0': global_doc}, gCat)
+    kf = dict(zip(results.keys(), [d.keys() for d in results.values()]))
+    createCSV(results, gCat)
+    plotKeyphrases(gCat)
+    generateWordCloud(results, gCat)
+    text_file.write(generateHTML(kf, gCat))
+
     print(results)
     for category in cats:
         documents = fetchCategory(category)
@@ -249,7 +259,7 @@ def main():
 
         text_file.write(generateHTML(keywords, category))
 
-        relevantInCategory(category, keywords_with_score, results)
+        #relevantInCategory(category, keywords_with_score, results)
 
     text_file.close()
 

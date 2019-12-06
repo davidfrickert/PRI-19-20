@@ -132,6 +132,10 @@ class Helper:
     def logical():
         return version_info >= (3, 7, 0)
 
+    @staticmethod
+    def printDict(d):
+        for item in d:
+            print(item, "-> ", d[item])
 
 class Metrics:
     '''
@@ -243,7 +247,7 @@ def combinationsN(list, n):
     return combs
 
 
-def getPageRankFromGraph(g: networkx.Graph, n_iter=1, d=0.15):
+def getPageRankFromGraph(g: networkx.Graph, n_iter=50, d=0.15):
     # N is the total number of candidates
 
     N = len(g.nodes)
@@ -267,7 +271,7 @@ def getPageRankFromGraph(g: networkx.Graph, n_iter=1, d=0.15):
 
 def getKeyphrases(doc):
     g = buildGraph(doc)
-    pr = getPageRankFromGraph(g, n_iter=15)
+    pr = getPageRankFromGraph(g)
     return list(OrderedDict(Helper.dictToOrderedList(pr, rev=True)).keys())
 
 
