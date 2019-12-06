@@ -48,7 +48,7 @@ def calculateParameters(doc: str, scores: Dict[str, float], cands, pr: Dict[str,
             spread = last_match - first_match
 
         params.append(
-            [cand_score, cand_len, cand_term_count, first_match, last_match, ne_cnt])#, pagerank_score])  # , r[cand]])
+            [cand_score, cand_len, cand_term_count, first_match, 1 - last_match, ne_cnt])#, pagerank_score])  # , r[cand]])
 
     params = np.array(params)
     max_ = params.max(axis=0)
@@ -94,7 +94,7 @@ def main():
     # test = dict(zip(list(test.keys()), list(test.values())))
     info = getInfo(test)
     cands = getAllCandidates(test, deliver_as='sentences')
-    kfs = getPageRankOfDataset(test)
+    #kfs = getPageRankOfDataset(test)
     rrfScores = {}
 
     for i, doc_name in enumerate(test.keys()):
@@ -102,7 +102,7 @@ def main():
         # g = buildGraph(cands, info['model'])
         # pr = computeWeightedPR(g, i, info, n_iter=15)
         params = calculateParameters(testStr[i], info['score'][doc_name], list(itertools.chain.from_iterable(cands[i])),
-                                     pr=kfs[doc_name])  # , pr)
+                                     pr=None)#kfs[doc_name])  # , pr)
         print(params)
         rrfScores[doc_name] = list(getRecipRankFusionScore(params).keys())
 

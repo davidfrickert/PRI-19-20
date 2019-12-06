@@ -1,11 +1,13 @@
-import string
+import itertools
 import json
 import os
-from xml.dom.minidom import parse, parseString
-from sklearn.feature_extraction.text import TfidfVectorizer
+from os.path import splitext
+from xml.dom.minidom import parse
+
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
-from os.path import  splitext
+from sklearn.feature_extraction.text import TfidfVectorizer
+
 
 def average(dic):
     total = 0
@@ -13,6 +15,7 @@ def average(dic):
         total += dic[item]
 
     return total / len(dic)
+
 
 def calcTPFNFP(doc, reference_results, results):
     porter = PorterStemmer()
@@ -62,8 +65,8 @@ def calcTPFNFP(doc, reference_results, results):
 
     return true_positives, false_negatives, false_positives
 
-def precisionAt(doc, reference_results, results, at):
 
+def precisionAt(doc, reference_results, results, at):
     porter = PorterStemmer()
     true_positives = 0
     counter = 0
@@ -84,33 +87,39 @@ def precisionAt(doc, reference_results, results, at):
             if stemed == term[0]:
                 true_positives += 1
                 break
-    
-        counter+=1
 
-    return float(true_positives)/float(at)
+        counter += 1
+
+    return float(true_positives) / float(at)
+
 
 def meanAvg(doc, reference_results, results):
     porter = PorterStemmer()
     correct = 0
     runningSum = 0
-    
-    tmp = results[doc][:len(reference_results)]
 
-    for i,word in enumerate(tmp):
-        stemed = ""
+    tmp = results[doc][:len(reference_results)]
+    ref_results = list(itertools.chain.from_iterable(reference_results[doc]))
+    sum_tmp = []
+    for i, word in enumerate(tmp):
+        kf = ""
 
         for w in word[0].split(' '):
-            stemed += porter.stem(w) + " "
+            kf += porter.stem(w) + " "
 
-        stemed = stemed[:-1]
+        kf = kf[:-1]
 
-        for term in reference_results[doc]:
-
-            if stemed == term[0]:
-                correct += 1
-                runningSum += correct/(i+1)
-                break
-    return float(runningSum) / float(len(reference_results[doc]))
+        if kf in ref_results:
+            sum_tmp.append(precisionAt(doc, reference_results, results, i + 1))
+        else:
+            sum_tmp.append(0)
+        #for term in reference_results[doc]:
+            #if kf == term[0]:
+                #correct += 1
+                #runningSum += correct / (i + 1)
+                #break
+    #return float(runningSum) / float(len(reference_results[doc]))
+    return sum(sum_tmp) / float(len(reference_results[doc]))
 
 def calcMetrics(results, reference):
     with open(reference) as f:
@@ -134,9 +143,8 @@ def calcMetrics(results, reference):
             else:
                 f1[x] = 0.
 
-            precision5[x] = precisionAt(x, reference_results, results,5)
-            _map[x] = meanAvg(x,reference_results,results)
-
+            precision5[x] = precisionAt(x, reference_results, results, 5)
+            _map[x] = meanAvg(x, reference_results, results)
 
         print("Precision: ")
         print(precision)
@@ -164,6 +172,7 @@ def convertXML(xml):
 
     return result
 
+
 def convertXMLToTaggedSents(xml):
     result = []
 
@@ -184,7 +193,7 @@ def getDataFromDir(path, mode='string'):
     for f in files:
 
         filePath = path + '/' + f.decode("utf-8")
-        with open(filePath) as datasource:
+        with open(filePath, encoding='utf-8') as datasource:
             dom = parse(datasource)
             xml = dom.getElementsByTagName('sentence')
 
@@ -205,13 +214,14 @@ def merge(dataset, terms, scoreArr):
 
             tf_idf = scoreArr[doc_index][word_index]
             if tf_idf != 0:
-                doc_info.append((term, tf_idf * (len(term)/len(term.split(' ')))))
+                doc_info.append((term, tf_idf * (len(term) / len(term.split(' ')))))
 
         # sort por tf_idf; elem = (term, tf_idf); elem[1] = tf_idf
         doc_info.sort(key=lambda elem: elem[1], reverse=True)
 
         data.update({doc_name: doc_info})
     return data
+
 
 def mergeDict(dataset, terms, scoreArr):
     data = {}
@@ -225,6 +235,7 @@ def mergeDict(dataset, terms, scoreArr):
         data.update({doc_name: doc_info})
     return data
 
+
 def getTFIDFScore(dataset):
     stopW = set(stopwords.words('english'))
 
@@ -234,7 +245,7 @@ def getTFIDFScore(dataset):
 
     terms = vec.get_feature_names()
     scoreArr = X.toarray()
-    
+
     return merge(dataset, terms, scoreArr)
 
 
@@ -243,7 +254,7 @@ def main():
     data = getTFIDFScore(test)
 
     calcMetrics(data, 'ake-datasets-master/datasets/500N-KPCrowd/references/train.reader.stem.json')
-    
+
 
 if __name__ == '__main__':
     main()

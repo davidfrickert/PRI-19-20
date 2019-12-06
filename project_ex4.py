@@ -8,6 +8,7 @@ import nltk
 from nltk import PorterStemmer
 from sklearn.linear_model import Perceptron
 from sklearn.metrics import precision_score, f1_score, recall_score, average_precision_score
+from truecase import get_true_case
 
 from project_ex2 import getDataFromDir
 from project_ex3 import getAllCandidates, getTFIDFScore, listOfTaggedToString, getBM25Score
@@ -64,8 +65,8 @@ def calculateParameters(all_cands, doc, scores):
 
         cand_len = len(cand)
         cand_term_count = len(cand.split())
-
-        words = nltk.pos_tag(nltk.word_tokenize(cand))
+        ne_cand = get_true_case(cand)
+        words = nltk.pos_tag(nltk.word_tokenize(ne_cand))
         ne = nltk.tree2conlltags(nltk.ne_chunk(words))
         ne = [' '.join(word for word, pos, chunk in group).lower()
               for key, group in itertools.groupby(ne, lambda tpl: tpl[2] != 'O') if key]
@@ -87,7 +88,7 @@ def calculateParameters(all_cands, doc, scores):
 
         # print([cand_score, freq, cand_len, cand_term_count, first_match, last_match, spread, ne_cnt])
 
-        params.append([cand_score, cand_len, cand_term_count, first_match, last_match, ne_cnt]) #cand_score,
+        params.append([cand_score, cand_len, cand_term_count, first_match, last_match, spread, ne_cnt]) #cand_score,
     return params
 
 

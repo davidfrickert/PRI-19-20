@@ -63,7 +63,10 @@ def plotKeyphrases(category):
     plt.ylabel("Weight")
     plt.tight_layout()
     #plt.gcf().subplots_adjust(bottom=0.15)
-    plt.savefig("img/" + category + '1.png')  # save to file
+    path = 'img/'
+    if not os.path.exists(path):
+        os.makedirs(path)
+    plt.savefig("img/" + category + '-plt.png')  # save to file
 
 
 def generateWordCloud(documents, category):
@@ -78,7 +81,7 @@ def generateWordCloud(documents, category):
         path = 'img/'
         if not os.path.exists(path):
             os.makedirs(path)
-        path = path + category + ".png"
+        path = path + category + "-cloud.png"
         wordcloud.to_file(path)
 
 
@@ -98,11 +101,11 @@ def generateHTML(documents, category):
                         text("Keywords:")
 
                     with tag('div', id='photo-container'):
-                        path = "img/" + category + "1.png"
+                        path = "img/" + category + "-plt.png"
                         doc.stag('img', src=path, klass="photo")
                         with tag('br'):
                             pass
-                        path = "img/" + category + ".png"
+                        path = "img/" + category + "-cloud.png"
                         doc.stag('img', src=path, klass="photo")
 
                 with tag('br'):

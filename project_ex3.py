@@ -40,6 +40,7 @@ def getAllChunks(tagged_sents, grammar=r'KT: {(<JJ>* <NN.*>+ <IN>)? <JJ>* <NN.*>
                                            for key, group in itertools.groupby(sentence, lambda tpl: tpl[2] != 'O') if
                                            key]))
         return [[cand for cand in sent if cand not in stop_words
+                and len(cand.split()) <= 3
                  and not any([all(char in punct for char in w) for w in cand.split()])
                  and not all(char in punct for char in cand)]
                 for sent in candidates]
